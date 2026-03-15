@@ -122,15 +122,15 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
   background:var(--s1);
   border:1px solid var(--bdr);
   border-radius:10px;
-  padding:9px 11px;
-  width:140px;
+  padding:7px 10px;
+  width:120px;
   transition:border-color .25s,box-shadow .25s;
 }
 .pseat.myturn{border-color:var(--gold);box-shadow:0 0 18px rgba(212,168,67,.28);animation:turnGlow 1.5s ease-in-out infinite}
 @keyframes turnGlow{0%,100%{box-shadow:0 0 10px rgba(212,168,67,.2)}50%{box-shadow:0 0 26px rgba(212,168,67,.5)}}
 .pseat.folded{opacity:.38}
 .pseat.winner-seat{border-color:var(--gold2);box-shadow:0 0 26px rgba(212,168,67,.4)}
-.pseat.me-seat{border-color:rgba(58,123,213,.5);width:170px;}
+.pseat.me-seat{border-color:rgba(58,123,213,.5);width:180px;}
 .pseat.bust{opacity:.22}
 
 /* ME seat: bigger, at bottom center */
@@ -722,9 +722,20 @@ function dealRound(fresh){
   const sbName=sb?.name||'?',bbName=bb?.name||'?';
   addLog(`🃏 <span class="lwho">Round ${G.round}</span> — Dealer: ${ap[G.dealerIdx]?.name||'?'} · SB: ${sbName} (${G.settings.sb}) · BB: ${bbName} (${G.settings.bb})`);
 
-  // Show round banner with blind info
-  showBanner(`♠ Round ${G.round} ♠`,`SB: ${sbName} (${G.settings.sb}) &nbsp;·&nbsp; BB: ${bbName} (${G.settings.bb})`);
+  // Sequence: "Dealing Cards..." → cards animate in → "Round N" with blinds → play begins
+  // Step 1: broadcast state so seats render with animPhase='deal'
   broadcastState();
+  // Step 2: "Dealing Cards..." banner immediately
+  showBanner('🃏 Dealing Cards...','',1600);
+  // Step 3: After deal animation completes (~1.8s), show Round N + blinds banner
+  setTimeout(()=>{
+    showBanner(`♠ Round ${G.round} ♠`,`SB: ${sbName} (${G.settings.sb}) &nbsp;·&nbsp; BB: ${bbName} (${G.settings.bb})`);
+  },1700);
+  // Step 4: Clear animPhase so cards don't re-animate on next render, then rebroadcast
+  setTimeout(()=>{
+    G.animPhase='';
+    broadcastState();
+  },1900);
 }
 
 function handleAction(data){
@@ -931,11 +942,11 @@ function seatPositions(total){
     {l:'50%',t:'auto',b:'0',cls:'me-seat'},  // 0 = me
     {l:'50%',t:'4px',cls:'top-seat'},         // 1 top center
     {l:'8px',t:'25%',cls:'left-seat'},        // 2 left
-    {l:'calc(100% - 148px)',t:'25%',cls:'right-seat'}, // 3 right
+    {l:'calc(100% - 128px)',t:'25%',cls:'right-seat'}, // 3 right
     {l:'22%',t:'4px',cls:'top-seat'},         // 4 top-left
-    {l:'calc(78% - 140px)',t:'4px',cls:'top-seat'}, // 5 top-right
+    {l:'calc(78% - 120px)',t:'4px',cls:'top-seat'}, // 5 top-right
     {l:'8px',t:'55%',cls:'left-seat'},        // 6 lower-left
-    {l:'calc(100% - 148px)',t:'55%',cls:'right-seat'}, // 7 lower-right
+    {l:'calc(100% - 128px)',t:'55%',cls:'right-seat'}, // 7 lower-right
   ];
   return base.slice(0,total);
 }
@@ -995,34 +1006,53 @@ function renderOvalSeats(G2,ap,cur,me){
     if(p.status==='winner')bdg+=`<span class="bdg bdg-win">👑 Winner</span>`;
     if(p.role==='dealer'&&G2.settings.dealerType==='non-playing')bdg+=`<span class="bdg bdg-d">Dealer</span>`;
 
-    // Cards — use round-robin animation during deal phase
+    // Cards:
+    // - "me" seat: show real cards with deal animation
+    // - other players: show nothing (no hidden backs) — just compact name/chips/badges
+    // - non-playing dealer: show "Dealer" label only
     let cardsHtml='';
     const numDeal=G2.players.filter(pl=>(G2.settings.dealerType==='playing'||pl.role!=='dealer')&&pl.status!=='bust').length;
     const pdi=p._di||0;
     if(p.role==='dealer'&&G2.settings.dealerType==='non-playing'){
-      cardsHtml='<span style="font-size:.58rem;color:var(--mut)">Non-Playing</span>';
-    }else{
+      cardsHtml=''; // no cards shown for non-playing dealer
+    }else if(isMe){
+      // My own cards — full size with deal animation
       cardsHtml=(p.cards||[]).map((c,ci)=>{
-        const el=mkCard(c,!isMe);
-        if(G2.animPhase==='deal'){
-          // Round-robin: first card slot = pdi, second card slot = numDeal+pdi
+        const el=mkCard(c,false);
+        if(G2.animPhase==='deal'&&c&&!c.hidden){
           const slot=ci===0?pdi:numDeal+pdi;
           el.classList.add('card-deal');
           el.style.animationDelay=(slot*0.13).toFixed(2)+'s';
         }
         return el.outerHTML;
       }).join('');
+    }else{
+      // Other players: show NOTHING — no face-down backs, no clutter
+      // Their status (folded/allin/call etc.) is shown via badges only
+      cardsHtml='';
     }
 
-    div.innerHTML=`
-      <div class="seat-header">
-        <div class="seat-name">${p.name}</div>
-        <div class="seat-chips"><small>Chips: </small>${p.chips}</div>
-      </div>
-      <div class="badgeline">${bdg}</div>
-      <div class="seat-cards">${cardsHtml}</div>
-      <div class="seat-bet-lbl">${p.bet>0?'In: '+p.bet:''}</div>
-    `;
+    if(isMe){
+      div.innerHTML=`
+        <div class="seat-header">
+          <div class="seat-name">${p.name}</div>
+          <div class="seat-chips"><small>Chips: </small>${p.chips}</div>
+        </div>
+        <div class="badgeline">${bdg}</div>
+        <div class="seat-cards">${cardsHtml}</div>
+        <div class="seat-bet-lbl">${p.bet>0?'In: '+p.bet:''}</div>
+      `;
+    }else{
+      // Compact seat for other players — name, chips, badges, bet label only
+      div.innerHTML=`
+        <div class="seat-header">
+          <div class="seat-name">${p.name}</div>
+          <div class="seat-chips"><small>♟ </small>${p.chips}</div>
+        </div>
+        <div class="badgeline">${bdg}</div>
+        ${p.bet>0?`<div class="seat-bet-lbl">In: ${p.bet}</div>`:''}
+      `;
+    }
     scene.appendChild(div);
   });
 }
