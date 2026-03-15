@@ -229,6 +229,75 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
   .abtns{gap:5px}
   .lcard,.wcard{padding:20px}
 }
+
+/* ═══ ANIMATIONS ═══ */
+@keyframes cardDeal{
+  0%  {opacity:0;transform:scale(0.4) translateY(-30px) rotateY(90deg);}
+  60% {transform:scale(1.08) translateY(-4px) rotateY(0deg);opacity:1;}
+  100%{transform:scale(1) translateY(0) rotateY(0deg);opacity:1;}
+}
+.card-deal{animation:cardDeal 0.42s cubic-bezier(0.22,1,0.36,1) both;}
+.card-deal-d1{animation-delay:0.06s;}.card-deal-d2{animation-delay:0.18s;}
+.card-deal-d3{animation-delay:0.30s;}.card-deal-d4{animation-delay:0.42s;}
+.card-deal-d5{animation-delay:0.54s;}
+
+@keyframes commReveal{
+  0%  {opacity:0;transform:translateY(22px) scale(0.82);}
+  65% {transform:translateY(-3px) scale(1.06);}
+  100%{opacity:1;transform:translateY(0) scale(1);}
+}
+.comm-reveal{animation:commReveal 0.48s cubic-bezier(0.34,1.56,0.64,1) both;}
+.comm-r0{animation-delay:0s;}.comm-r1{animation-delay:0.13s;}.comm-r2{animation-delay:0.26s;}
+
+.phase-overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+.phase-banner{font-family:'Cinzel Decorative',serif;font-size:clamp(1.3rem,4vw,2.2rem);color:var(--gold2);
+  text-shadow:0 0 40px rgba(212,168,67,.7),0 2px 8px rgba(0,0,0,.9);letter-spacing:.1em;
+  padding:16px 38px;background:rgba(8,9,12,.9);border:1px solid rgba(212,168,67,.4);
+  border-radius:14px;backdrop-filter:blur(18px);
+  animation:pbAnim 2.4s cubic-bezier(0.22,1,0.36,1) forwards;}
+@keyframes pbAnim{
+  0%  {opacity:0;transform:scale(0.65);}
+  15% {opacity:1;transform:scale(1.05);}
+  30% {transform:scale(1);}
+  70% {opacity:1;}
+  100%{opacity:0;transform:scale(1.08);}
+}
+
+@keyframes winnerPop{
+  0%  {box-shadow:0 0 0 0 rgba(212,168,67,.8);}
+  50% {box-shadow:0 0 0 16px rgba(212,168,67,0);}
+  100%{box-shadow:0 0 0 0 rgba(212,168,67,0);}
+}
+.pseat.winner-seat{animation:winnerPop 0.85s ease-out 4;}
+
+@keyframes potPop{0%{transform:scale(1);}40%{transform:scale(1.25);color:var(--gold2);}100%{transform:scale(1);}}
+.pot-pop{animation:potPop 0.4s ease;}
+
+@keyframes sdRowIn{from{opacity:0;transform:translateX(-16px);}to{opacity:1;transform:translateX(0);}}
+.sdrow{animation:sdRowIn 0.32s ease both;}
+.sdrow:nth-child(1){animation-delay:.08s;}.sdrow:nth-child(2){animation-delay:.20s;}
+.sdrow:nth-child(3){animation-delay:.32s;}.sdrow:nth-child(4){animation-delay:.44s;}
+.sdrow:nth-child(5){animation-delay:.56s;}.sdrow:nth-child(6){animation-delay:.68s;}
+
+@keyframes seatIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.pseat{animation:seatIn 0.28s ease both;}
+
+@keyframes foldOut{0%{opacity:1;transform:scale(1);}100%{opacity:.38;transform:scale(0.97);}}
+.pseat.folded{animation:foldOut 0.38s ease forwards;}
+
+@keyframes panelUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
+.apanel:not(.hidden){animation:panelUp 0.28s ease both;}
+.sdpanel:not(.hidden){animation:panelUp 0.38s ease both;}
+
+@keyframes arrowBounce{0%,100%{transform:translateX(0);}50%{transform:translateX(5px);}}
+.ytbanner::before{content:'\25BA ';display:inline-block;animation:arrowBounce 0.9s ease-in-out infinite;}
+
+@keyframes screenFadeIn{from{opacity:0;}to{opacity:1;}}
+#gameScreen:not(.hidden){animation:screenFadeIn 0.45s ease both;}
+
+@keyframes chipFlash{0%,100%{color:var(--gold);}50%{color:#fff;text-shadow:0 0 10px var(--gold2);}}
+.chip-flash{animation:chipFlash 0.5s ease 3;}
+
 </style>
 </head>
 <body>
@@ -399,6 +468,38 @@ function hide(id){$(id).classList.add('hidden');}
 function showToast(msg,dur=2600){const t=$('toast');t.textContent=msg;t.classList.remove('hidden');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.add('hidden'),dur);}
 function addLog(html){const d=document.createElement('div');d.className='lentry';d.innerHTML=html;const w=$('glogInner');w.appendChild(d);while(w.children.length>60)w.removeChild(w.firstChild);w.scrollTop=w.scrollHeight;}
 
+// Show centered phase announcement banner for 2.4s
+function showPhaseBanner(label){
+  const ov=document.createElement('div');
+  ov.className='phase-overlay';
+  ov.innerHTML='<div class="phase-banner">'+label+'</div>';
+  document.body.appendChild(ov);
+  setTimeout(()=>ov.remove(),2500);
+}
+
+// Pot amount pulse animation
+function animatePot(){
+  const el=$('potVal');
+  if(!el)return;
+  el.classList.remove('pot-pop');
+  void el.offsetWidth; // reflow
+  el.classList.add('pot-pop');
+  setTimeout(()=>el.classList.remove('pot-pop'),500);
+}
+
+// Flash winner chip count
+function flashChips(pid){
+  setTimeout(()=>{
+    document.querySelectorAll('.seat-chips').forEach((el,i)=>{
+      const seat=el.closest('.pseat');
+      if(seat&&seat.classList.contains('winner-seat')){
+        el.classList.add('chip-flash');
+        setTimeout(()=>el.classList.remove('chip-flash'),1800);
+      }
+    });
+  },400);
+}
+
 // ════════════════════════════════════════════════════════════
 //  LOBBY SETTINGS
 // ════════════════════════════════════════════════════════════
@@ -439,49 +540,131 @@ function shuffle(a){
 }
 
 // ════════════════════════════════════════════════════════════
-//  HAND EVALUATOR
+//  HAND EVALUATOR  — fully correct for 2–7 cards
 // ════════════════════════════════════════════════════════════
 function bestHand(cards){
-  const all=(cards||[]).filter(c=>c&&!c.hidden);
-  if(!all.length)return{tier:0,name:'No Cards',desc:'',score:0};
-  if(all.length<5)return evalFew(all);
+  // Filter out hidden/null cards
+  const all=(cards||[]).filter(c=>c&&!c.hidden&&c.rank&&c.suit);
+  if(!all.length) return{tier:0,name:'No Cards',desc:'',score:0};
+
+  // With fewer than 5 cards we still evaluate pairs, trips etc.
+  if(all.length<5) return evalPartial(all);
+
+  // With 5+ cards, try every 5-card combo and return the best
   let best=null;
-  for(const c of combos(all,5)){const r=eval5(c);if(!best||r.score>best.score)best=r;}
+  for(const c of combos(all,5)){
+    const r=eval5(c);
+    if(!best||r.score>best.score) best=r;
+  }
   return best;
 }
-function evalFew(cards){
+
+// evalPartial: correctly detects pairs/trips/quads/two-pair from 2-4 cards
+function evalPartial(cards){
   const vals=cards.map(c=>RV[c.rank]).sort((a,b)=>b-a);
-  return{tier:0,name:'High Card',desc:vals.join('-'),score:vals.reduce((a,v,i)=>a+v*Math.pow(100,4-i),0)};
+  const freq={};
+  vals.forEach(v=>freq[v]=(freq[v]||0)+1);
+  const g=Object.entries(freq)
+    .map(([v,c])=>({v:+v,c}))
+    .sort((a,b)=>b.c-a.c||b.v-a.v);
+  const ct=g.map(x=>x.c);
+
+  let tier,score,desc;
+  if(ct[0]===4){
+    tier=7; score=7e6+g[0].v*1e3+(g[1]?.v||0);
+    desc=`Four ${rankName(g[0].v)}s`;
+  } else if(ct[0]===3&&ct[1]===2){
+    tier=6; score=6e6+g[0].v*1e3+g[1].v;
+    desc=`${rankName(g[0].v)}s full of ${rankName(g[1].v)}s`;
+  } else if(ct[0]===3){
+    tier=3; score=3e6+g[0].v*1e4+(g[1]?.v||0)*100+(g[2]?.v||0);
+    desc=`Three ${rankName(g[0].v)}s`;
+  } else if(ct[0]===2&&ct[1]===2){
+    const ps=g.filter(x=>x.c===2).sort((a,b)=>b.v-a.v);
+    const k=g.find(x=>x.c===1);
+    tier=2; score=2e6+ps[0].v*1e4+ps[1].v*100+(k?.v||0);
+    desc=`${rankName(ps[0].v)}s and ${rankName(ps[1].v)}s`;
+  } else if(ct[0]===2){
+    const kickers=vals.filter(v=>v!==g[0].v);
+    tier=1; score=1e6+g[0].v*1e4+kickers.reduce((a,v,i)=>a+v*Math.pow(100,2-i),0);
+    desc=`Pair of ${rankName(g[0].v)}s`;
+  } else {
+    tier=0; score=vals.reduce((a,v,i)=>a+v*Math.pow(100,4-i),0);
+    desc=`${rankName(vals[0])}-high`;
+  }
+  return{tier,name:HN[tier],desc,score};
 }
+
+function rankName(v){
+  return ({11:'Jacks',12:'Queens',13:'Kings',14:'Aces'})[v]||v+'s';
+}
+
 function eval5(cards){
   const vals=cards.map(c=>RV[c.rank]).sort((a,b)=>b-a);
   const suits=cards.map(c=>c.suit);
   const isF=suits.every(s=>s===suits[0]);
-  const freq={};vals.forEach(v=>freq[v]=(freq[v]||0)+1);
-  const g=Object.entries(freq).map(([v,c])=>({v:+v,c})).sort((a,b)=>b.c-a.c||b.v-a.v);
+
+  // frequency table
+  const freq={};
+  vals.forEach(v=>freq[v]=(freq[v]||0)+1);
+  const g=Object.entries(freq)
+    .map(([v,c])=>({v:+v,c}))
+    .sort((a,b)=>b.c-a.c||b.v-a.v);
+  const ct=g.map(x=>x.c);
+
+  // straight detection (must have exactly 5 unique ranks)
   const uv=[...new Set(vals)].sort((a,b)=>b-a);
   let isS=false,sH=0;
-  if(uv.length>=5)for(let i=0;i<=uv.length-5;i++)if(uv[i]-uv[i+4]===4&&new Set(uv.slice(i,i+5)).size===5){isS=true;sH=uv[i];break;}
-  if(!isS&&uv.includes(14)&&uv.includes(2)&&uv.includes(3)&&uv.includes(4)&&uv.includes(5)){isS=true;sH=5;}
-  const ct=g.map(x=>x.c);
-  let tier,score;
-  if(isF&&isS&&sH===14&&vals.includes(13)){tier=9;score=9e6;}
-  else if(isF&&isS){tier=8;score=8e6+sH;}
-  else if(ct[0]===4){tier=7;score=7e6+g[0].v*1e3+(g[1]?.v||0);}
-  else if(ct[0]===3&&ct[1]===2){tier=6;score=6e6+g[0].v*1e3+g[1].v;}
-  else if(isF){tier=5;score=5e6+vals.reduce((a,v,i)=>a+v*Math.pow(100,4-i),0);}
-  else if(isS){tier=4;score=4e6+sH;}
-  else if(ct[0]===3){tier=3;score=3e6+g[0].v*1e4+g[1].v*100+(g[2]?.v||0);}
-  else if(ct[0]===2&&ct[1]===2){const ps=g.filter(x=>x.c===2).sort((a,b)=>b.v-a.v);const k=g.find(x=>x.c===1);tier=2;score=2e6+ps[0].v*1e4+ps[1].v*100+(k?.v||0);}
-  else if(ct[0]===2){const k=vals.filter(v=>v!==g[0].v);tier=1;score=1e6+g[0].v*1e4+k.reduce((a,v,i)=>a+v*Math.pow(100,2-i),0);}
-  else{tier=0;score=vals.reduce((a,v,i)=>a+v*Math.pow(100,4-i),0);}
-  return{tier,name:HN[tier],desc:HD[tier],score};
+  if(uv.length===5){
+    if(uv[0]-uv[4]===4){isS=true;sH=uv[0];}
+    // wheel: A-2-3-4-5
+    else if(uv[0]===14&&uv[1]===5&&uv[2]===4&&uv[3]===3&&uv[4]===2){isS=true;sH=5;}
+  }
+
+  let tier,score,desc;
+  if(isF&&isS&&sH===14){
+    tier=9;score=9e6;desc='A-K-Q-J-10 of same suit';
+  } else if(isF&&isS){
+    tier=8;score=8e6+sH;desc=`${rankName2(sH)}-high straight flush`;
+  } else if(ct[0]===4){
+    tier=7;score=7e6+g[0].v*1e3+(g[1]?.v||0);desc=`Four ${rankName(g[0].v)}`;
+  } else if(ct[0]===3&&ct[1]===2){
+    tier=6;score=6e6+g[0].v*1e3+g[1].v;desc=`${rankName(g[0].v)} full of ${rankName(g[1].v)}`;
+  } else if(isF){
+    tier=5;score=5e6+vals.reduce((a,v,i)=>a+v*Math.pow(100,4-i),0);
+    desc=`${rankName2(vals[0])}-high flush`;
+  } else if(isS){
+    tier=4;score=4e6+sH;desc=`${rankName2(sH)}-high straight`;
+  } else if(ct[0]===3){
+    tier=3;score=3e6+g[0].v*1e4+(g[1]?.v||0)*100+(g[2]?.v||0);
+    desc=`Three ${rankName(g[0].v)}`;
+  } else if(ct[0]===2&&ct[1]===2){
+    const ps=g.filter(x=>x.c===2).sort((a,b)=>b.v-a.v);
+    const k=g.find(x=>x.c===1);
+    tier=2;score=2e6+ps[0].v*1e4+ps[1].v*100+(k?.v||0);
+    desc=`${rankName(ps[0].v)} and ${rankName(ps[1].v)}`;
+  } else if(ct[0]===2){
+    const kickers=vals.filter(v=>v!==g[0].v);
+    tier=1;score=1e6+g[0].v*1e4+kickers.reduce((a,v,i)=>a+v*Math.pow(100,2-i),0);
+    desc=`Pair of ${rankName(g[0].v)}`;
+  } else {
+    tier=0;score=vals.reduce((a,v,i)=>a+v*Math.pow(100,4-i),0);
+    desc=`${rankName2(vals[0])}-high`;
+  }
+  return{tier,name:HN[tier],desc,score};
 }
+
+function rankName2(v){
+  return ({11:'Jack',12:'Queen',13:'King',14:'Ace'})[v]||String(v);
+}
+
 function combos(arr,k){
-  if(k===arr.length)return[arr.slice()];
-  if(k===1)return arr.map(x=>[x]);
+  if(k===arr.length) return[arr.slice()];
+  if(k===1) return arr.map(x=>[x]);
   const out=[];
-  for(let i=0;i<=arr.length-k;i++)for(const r of combos(arr.slice(i+1),k-1))out.push([arr[i],...r]);
+  for(let i=0;i<=arr.length-k;i++)
+    for(const r of combos(arr.slice(i+1),k-1))
+      out.push([arr[i],...r]);
   return out;
 }
 
@@ -509,7 +692,8 @@ let G={
   turnIdx:0,phase:'preflop',round:1,
   dealerIdx:0,sbIdx:0,bbIdx:0,
   settings:{chips:500,sb:10,bb:20,dealerType:'non-playing'},
-  actionsSinceLastRaise:0
+  actionsSinceLastRaise:0,
+  commRevealPhase:''
 };
 
 // local copy (sanitized)
@@ -658,7 +842,7 @@ function dealRound(fresh){
   G.community=[];
   G.pot=0; G.currentBet=G.settings.bb;
   G.minRaise=G.settings.bb;
-  G.phase='preflop'; G.actionsSinceLastRaise=0;
+  G.phase='preflop'; G.actionsSinceLastRaise=0; G.commRevealPhase='deal';
 
   G.players.forEach(p=>{p.cards=[];p.bet=0;p.totalBet=0;p.lastAction='';if(p.status!=='bust')p.status='active';});
 
@@ -874,8 +1058,10 @@ function renderGame(){
   // Your turn banner
   if(isMyTurn)show('ytBanner');else hide('ytBanner');
 
-  // Pot
+  // Pot (animate on change)
+  const prevPot=$('potVal').textContent;
   $('potVal').textContent=LG.pot;
+  if(String(LG.pot)!==prevPot) animatePot();
 
   // Community cards
   renderComm(LG);
@@ -902,17 +1088,30 @@ function renderGame(){
 
 function renderComm(G2){
   const row=$('commRow'); row.innerHTML='';
+  // Track which cards are newly revealed this render
+  const reveal=G2.commRevealPhase;
   for(let i=0;i<5;i++){
     const c=G2.community[i];
-    if(c){row.appendChild(mkCardEl(c,false));}
-    else{const s=document.createElement('div');s.className='comm-slot';row.appendChild(s);}
+    if(c){
+      const el=mkCardEl(c,false);
+      // Add reveal animation for newly dealt cards
+      let animCls='comm-reveal';
+      if(reveal==='flop'&&i<3) animCls+=' comm-r'+i;
+      else if(reveal==='turn'&&i===3) animCls+=' comm-r0';
+      else if(reveal==='river'&&i===4) animCls+=' comm-r0';
+      el.className+=' '+animCls;
+      row.appendChild(el);
+    } else {
+      const s=document.createElement('div');s.className='comm-slot';row.appendChild(s);
+    }
   }
 }
 
-function mkCardEl(card,sm){
+function mkCardEl(card,sm,dealIdx){
   const d=document.createElement('div');
   if(!card||card.hidden){d.className='card'+(sm?' sm':'')+' fd';return d;}
   d.className='card'+(sm?' sm':'');
+  if(dealIdx!==undefined){d.classList.add('card-deal','card-deal-d'+dealIdx);}
   d.innerHTML=`<span class="crank ${SC[card.suit]}">${card.rank}</span><span class="csuit ${SC[card.suit]}">${card.suit}</span>`;
   return d;
 }
@@ -952,7 +1151,7 @@ function renderSeats(G2,ap,cur,me){
     if(p.role==='dealer'&&G2.settings.dealerType==='non-playing'){
       cardsHtml='<span style="font-size:.62rem;color:var(--mut)">Non-Playing</span>';
     }else{
-      cardsHtml=(p.cards||[]).map(c=>mkCardEl(c,true).outerHTML).join('');
+      cardsHtml=(p.cards||[]).map((c,ci)=>mkCardEl(c,true,ci+1).outerHTML).join('');
       if(!cardsHtml)cardsHtml='<span style="font-size:.62rem;color:var(--mut)">—</span>';
     }
 
@@ -975,7 +1174,7 @@ function renderDview(G2){
   const grid=$('dviewGrid');grid.innerHTML='';
   G2.players.filter(p=>p.role!=='dealer').forEach(p=>{
     const div=document.createElement('div');div.className='dview-item';
-    const ch=((p.cards||[]).length?p.cards:[]).map(c=>mkCardEl(c,true).outerHTML).join('');
+    const ch=((p.cards||[]).length?p.cards:[]).map((c,ci)=>mkCardEl(c,true,ci+1).outerHTML).join('');
     const hr=p.cards&&p.cards.length>=2?bestHand([...p.cards,...G2.community]):null;
     div.innerHTML=`
       <div class="dview-item-name">${p.name}</div>
