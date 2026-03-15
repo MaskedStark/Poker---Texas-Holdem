@@ -846,9 +846,18 @@ function dealRound(fresh){
 
   G.players.forEach(p=>{p.cards=[];p.bet=0;p.totalBet=0;p.lastAction='';if(p.status!=='bust')p.status='active';});
 
-  // Deal 2 cards to playing players
+  // Deal 2 cards to playing players — round-robin: first card to all, then second card to all
   const deal=G.settings.dealerType==='playing'?G.players:G.players.filter(p=>p.role!=='dealer');
-  deal.filter(p=>p.status!=='bust').forEach(p=>{p.cards=[G.deck.pop(),G.deck.pop()];});
+  const dealPlayers=deal.filter(p=>p.status!=='bust');
+  // Give each player placeholder so state is ready
+  dealPlayers.forEach(p=>{p.cards=[null,null];});
+  // Deal first card to each player in sequence
+  dealPlayers.forEach(p=>{p.cards[0]=G.deck.pop();});
+  // Deal second card to each player in sequence
+  dealPlayers.forEach(p=>{p.cards[1]=G.deck.pop();});
+  // Mark deal animation — stagger index = player index in deal order
+  dealPlayers.forEach((p,i)=>{p._dealIdx=i;});
+  G.commRevealPhase='deal';
 
   // Post blinds
   const sb=ap[G.sbIdx],bb=ap[G.bbIdx];
@@ -1107,11 +1116,16 @@ function renderComm(G2){
   }
 }
 
-function mkCardEl(card,sm,dealIdx){
+function mkCardEl(card,sm,dealSlot){
   const d=document.createElement('div');
   if(!card||card.hidden){d.className='card'+(sm?' sm':'')+' fd';return d;}
   d.className='card'+(sm?' sm':'');
-  if(dealIdx!==undefined){d.classList.add('card-deal','card-deal-d'+dealIdx);}
+  if(dealSlot!==undefined){
+    d.classList.add('card-deal');
+    // Each slot = 0.13s apart, capped at reasonable range
+    const delaySec=(dealSlot*0.13).toFixed(2);
+    d.style.animationDelay=delaySec+'s';
+  }
   d.innerHTML=`<span class="crank ${SC[card.suit]}">${card.rank}</span><span class="csuit ${SC[card.suit]}">${card.suit}</span>`;
   return d;
 }
@@ -1151,7 +1165,16 @@ function renderSeats(G2,ap,cur,me){
     if(p.role==='dealer'&&G2.settings.dealerType==='non-playing'){
       cardsHtml='<span style="font-size:.62rem;color:var(--mut)">Non-Playing</span>';
     }else{
-      cardsHtml=(p.cards||[]).map((c,ci)=>mkCardEl(c,true,ci+1).outerHTML).join('');
+      // Stagger: first card for each player dealt in order, then second card
+      // playerDealIdx = position in deal order, card 0 comes first round, card 1 comes second round
+      const numDealPlayers = G2.players.filter(pl=>(G2.settings.dealerType==='playing'||pl.role!=='dealer')&&pl.status!=='bust').length;
+      const pdi = p._dealIdx !== undefined ? p._dealIdx : 0;
+      cardsHtml=(p.cards||[]).map((c,ci)=>{
+        // ci=0: first round of dealing, delay = pdi * 0.15s
+        // ci=1: second round, delay = (numDealPlayers + pdi) * 0.15s
+        const delaySlot = G2.commRevealPhase==='deal' ? (ci===0 ? pdi : numDealPlayers + pdi) : undefined;
+        return mkCardEl(c,true,delaySlot).outerHTML;
+      }).join('');
       if(!cardsHtml)cardsHtml='<span style="font-size:.62rem;color:var(--mut)">—</span>';
     }
 
@@ -1258,20 +1281,40 @@ function dispatchAction(act,amt){
 
 function renderShowdown(G2,ap){
   show('sdpanel');
+  const comm=G2.community.filter(c=>c&&!c.hidden);
   const eligible=ap.filter(p=>p.status!=='folded'&&p.status!=='bust');
-  eligible.sort((a,b)=>(b.handResult?.score||0)-(a.handResult?.score||0));
-  const top=eligible[0]?.handResult?.score||0;
+
+  // Always recompute hand results client-side from visible cards + community
+  // This guarantees correctness regardless of what came over the wire
+  eligible.forEach(p=>{
+    const holeCards=(p.cards||[]).filter(c=>c&&!c.hidden);
+    if(holeCards.length>0){
+      p._computed=bestHand([...holeCards,...comm]);
+    } else if(p.handResult){
+      // Fall back to server-computed if we can't see the cards (non-dealer client)
+      p._computed=p.handResult;
+    } else {
+      p._computed={tier:0,name:'—',desc:'',score:0};
+    }
+  });
+
+  eligible.sort((a,b)=>(b._computed.score||0)-(a._computed.score||0));
+  const top=eligible[0]?._computed.score||0;
   const medals=['🥇','🥈','🥉'];
   $('sdlist').innerHTML=eligible.map((p,i)=>{
-    const isW=p.handResult?.score===top;
+    const isW=p._computed.score===top&&p._computed.score>0;
     const ch=(p.cards||[]).filter(c=>c&&!c.hidden).map(c=>mkCardEl(c,true).outerHTML).join('');
-    const commH=G2.community.map(c=>mkCardEl(c,true).outerHTML).join('');
+    const commH=comm.map(c=>mkCardEl(c,true).outerHTML).join('');
+    const hasHidden=(p.cards||[]).some(c=>c&&c.hidden);
     return`<div class="sdrow ${isW?'win':''}">
       <div class="sdpos">${medals[i]||i+1}</div>
-      <div class="sdcards">${ch}${G2.community.length?`<span style="color:var(--mut);font-size:.65rem;align-self:center;padding:0 2px">+</span>${commH}`:''}</div>
+      <div class="sdcards">
+        ${ch||'<span style="font-size:.65rem;color:var(--mut)">hidden</span>'}
+        ${comm.length?`<span style="color:var(--mut);font-size:.65rem;align-self:center;padding:0 2px">+</span>${commH}`:''}
+      </div>
       <div class="sdinfo">
         <div class="sdn">${p.name} ${isW?'👑':''}</div>
-        <div class="sdh">${p.handResult?.name||'—'} · ${p.handResult?.desc||''}</div>
+        <div class="sdh">${p._computed.name}${p._computed.desc?' · '+p._computed.desc:''}</div>
         <div class="sdc">Chips: ${p.chips}</div>
       </div>
     </div>`;
