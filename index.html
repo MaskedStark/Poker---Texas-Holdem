@@ -662,6 +662,7 @@ function onGuestReceive(data){
   if(data.type==='LOBBY'){G.players=data.players;G.settings=data.settings;refreshWaitList();}
   if(data.type==='START'){applyState(data.state);launchGame();}
   if(data.type==='STATE'){applyState(data.state);}
+  if(data.type==='BANNER'){showBanner(data.line1,data.line2,data.dur);}
 }
 
 function refreshWaitList(){
@@ -722,20 +723,21 @@ function dealRound(fresh){
   const sbName=sb?.name||'?',bbName=bb?.name||'?';
   addLog(`🃏 <span class="lwho">Round ${G.round}</span> — Dealer: ${ap[G.dealerIdx]?.name||'?'} · SB: ${sbName} (${G.settings.sb}) · BB: ${bbName} (${G.settings.bb})`);
 
-  // Sequence: "Dealing Cards..." → cards animate in → "Round N" with blinds → play begins
-  // Step 1: broadcast state so seats render with animPhase='deal'
+  // Sequence of events (all players see every banner):
+  // t=0:    Broadcast state (cards dealt, animPhase='deal') → deal animation starts on all screens
+  // t=0:    Banner 1 — "🃏 Dealing Cards..." (1.6s duration) shown to ALL
+  // t=1.7s: Banner 2 — "♠ Round N ♠" with SB/BB info shown to ALL
+  // t=3.9s: Banners done, 0.5s pause, then animPhase cleared → game becomes interactive
   broadcastState();
-  // Step 2: "Dealing Cards..." banner immediately
-  showBanner('🃏 Dealing Cards...','',1600);
-  // Step 3: After deal animation completes (~1.8s), show Round N + blinds banner
+  broadcastBanner('🃏 Dealing Cards...','',1600);
   setTimeout(()=>{
-    showBanner(`♠ Round ${G.round} ♠`,`SB: ${sbName} (${G.settings.sb}) &nbsp;·&nbsp; BB: ${bbName} (${G.settings.bb})`);
+    broadcastBanner(`♠ Round ${G.round} ♠`,`SB: ${sbName} (${G.settings.sb}) &nbsp;·&nbsp; BB: ${bbName} (${G.settings.bb})`,2200);
   },1700);
-  // Step 4: Clear animPhase so cards don't re-animate on next render, then rebroadcast
+  // After both banners finish + 0.5s pause → clear anim and open game
   setTimeout(()=>{
     G.animPhase='';
     broadcastState();
-  },1900);
+  },4200);
 }
 
 function handleAction(data){
@@ -790,8 +792,8 @@ function nextPhase(){
   const PHASES=['preflop','flop','turn','river','showdown'];
   const idx=PHASES.indexOf(G.phase);
   if(idx>=PHASES.length-2){
-    showBanner('♦ Showdown ♦','Best hand wins!');
-    setTimeout(()=>doShowdown(),1100);
+    broadcastBanner('♦ Showdown ♦','Best hand wins!',2000);
+    setTimeout(()=>doShowdown(),2500);
     return;
   }
   G.phase=PHASES[idx+1];
@@ -799,9 +801,10 @@ function nextPhase(){
   G.currentBet=0;G.minRaise=G.settings.bb;G.actionsSinceLastRaise=0;
   const phaseLabels={flop:'♥ The Flop ♥',turn:'♦ The Turn ♦',river:'♣ The River ♣'};
   G.animPhase=G.phase;
-  // Broadcast blank state (show empty slots), then after banner show cards
+  // Broadcast blank state first (empty community slots visible), then banner, then cards
   broadcastState();
-  showBanner(phaseLabels[G.phase]||G.phase,'');
+  broadcastBanner(phaseLabels[G.phase]||G.phase,'',1800);
+  // After banner (1.8s) + 0.5s pause = 2.3s → deal community cards and open betting
   setTimeout(()=>{
     if(G.phase==='flop'){G.community=[G.deck.pop(),G.deck.pop(),G.deck.pop()];addLog('🃏 <span class="lwho">Flop</span> dealt');}
     else if(G.phase==='turn'){G.community.push(G.deck.pop());addLog('🃏 <span class="lwho">Turn</span> dealt');}
@@ -811,7 +814,7 @@ function nextPhase(){
     while(skipSeat(ap[s])&&t<n){s=(s+1)%n;t++;}
     G.turnIdx=s;
     broadcastState();
-  },950);
+  },2300);
 }
 
 function runToShowdown(){
@@ -865,6 +868,15 @@ function broadcastState(){
   for(const[id,conn] of Object.entries(guestConns)){try{conn.send({type:'STATE',state:sanitise(s,id)});}catch(e){}}
   applyState(sanitise(s,myId));
 }
+
+// Send a banner message to ALL connected guests so they see it too
+function broadcastBanner(line1,line2,dur){
+  const msg={type:'BANNER',line1,line2,dur};
+  for(const conn of Object.values(guestConns)){try{conn.send(msg);}catch(e){}}
+  // Host shows it locally too
+  showBanner(line1,line2,dur);
+}
+
 function applyState(state){LG=state;renderGame();}
 
 // ════════════════════════════════════════════════
