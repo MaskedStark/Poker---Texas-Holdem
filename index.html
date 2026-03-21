@@ -116,7 +116,7 @@ body{background:var(--bg);color:var(--txt)}
 /* WOODEN OVAL TABLE */
 .twood{
   position:absolute;
-  width:min(88%,820px);height:min(85%,400px);
+  width:min(90%,840px);height:min(82%,390px);
   border-radius:999px;
   background:radial-gradient(ellipse 80% 65% at 50% 50%,var(--felt3) 0%,var(--felt2) 60%,var(--felte) 100%);
   /* Wood rail — stacked box-shadows */
@@ -156,9 +156,9 @@ body{background:var(--bg);color:var(--txt)}
 .bpsb{background:rgba(0,200,83,.14);border:1px solid rgba(0,200,83,.35);color:var(--grn)}
 .bpbb{background:rgba(68,138,255,.14);border:1px solid rgba(68,138,255,.35);color:var(--blu)}
 
-/* PLAYER SEATS — absolute positioned around oval */
+/* PLAYER SEATS — absolute positioned around oval (other players only) */
 .seat{position:absolute;background:rgba(8,12,18,.9);border:1px solid rgba(255,255,255,.09);
-  border-radius:12px;padding:6px 9px;min-width:105px;backdrop-filter:blur(8px);
+  border-radius:12px;padding:6px 9px;min-width:100px;backdrop-filter:blur(8px);
   transition:border-color .2s,box-shadow .2s}
 .seat.myturn{border-color:var(--gold)!important;animation:sg 1.4s ease-in-out infinite}
 @keyframes sg{0%,100%{box-shadow:0 0 0 1px rgba(232,184,75,.2),0 0 16px rgba(232,184,75,.2)}
@@ -167,7 +167,39 @@ body{background:var(--bg);color:var(--txt)}
 .seat.winner{border-color:var(--gold2)!important;animation:wg .9s ease-out 5}
 @keyframes wg{0%{box-shadow:0 0 0 0 rgba(255,217,122,.8)}50%{box-shadow:0 0 0 14px rgba(255,217,122,0)}100%{box-shadow:0 0 0 0 rgba(255,217,122,0)}}
 .seat.bust{opacity:.15}
-.seat.me{min-width:125px;background:rgba(6,10,22,.94);border-color:rgba(68,138,255,.35)!important}
+
+/* ME STRIP — dedicated row below the table, never overlaps community cards */
+.me-strip{
+  flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  padding:4px 10px 5px;
+  background:rgba(0,0,0,.4);
+  border-top:1px solid rgba(68,138,255,.2);
+  min-height:0;
+}
+.me-seat{
+  display:flex;align-items:center;gap:10px;
+  background:rgba(6,10,22,.94);
+  border:1px solid rgba(68,138,255,.35);
+  border-radius:12px;padding:6px 14px;
+  backdrop-filter:blur(8px);
+  width:min(420px,96%);
+}
+.me-seat.myturn{border-color:var(--gold)!important;animation:sg 1.4s ease-in-out infinite}
+.me-seat.winner{border-color:var(--gold2)!important;animation:wg .9s ease-out 5}
+.me-seat.folded{opacity:.4}
+/* Left: avatar + info */
+.me-left{display:flex;align-items:center;gap:7px;flex-shrink:0}
+/* Center: cards */
+.me-center{flex:1;display:flex;align-items:center;justify-content:center;gap:8px}
+.me-cards{display:flex;gap:5px}
+.me-hand{font-family:'Cinzel',serif;font-size:.62rem;color:var(--gold2);
+  font-weight:600;letter-spacing:.03em;text-shadow:0 0 8px rgba(232,184,75,.4);
+  white-space:nowrap}
+/* Right: bet + badges */
+.me-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;min-width:50px}
+.me-bet{font-size:.58rem;color:var(--gold);font-family:'Cinzel',serif}
+.me-bdg{display:flex;flex-wrap:wrap;gap:2px;justify-content:flex-end}
 
 /* Seat internals */
 .s-top{display:flex;align-items:center;gap:5px;margin-bottom:3px}
@@ -405,13 +437,16 @@ body{background:var(--bg);color:var(--txt)}
       <div class="comm" id="comm"></div>
       <div class="blinds" id="blinds"></div>
     </div>
-    <!-- seats injected by JS -->
+    <!-- only OTHER players injected here by JS (not "me") -->
     <div class="sdov hidden" id="sdov">
       <div class="sdt">🏆 Showdown</div>
       <div class="sdl" id="sdl"></div>
       <div class="sd-ctrl" id="sdctrl"></div>
     </div>
   </div>
+
+  <!-- MY SEAT — always at bottom, outside the table, never overlaps -->
+  <div class="me-strip" id="meStrip"></div>
 
   <div class="dv hidden" id="dv">
     <div class="dv-t">👁 Dealer — All Hands</div>
@@ -879,23 +914,25 @@ function getPos(n){
 }
 
 function renderSeats(G2,ap,cur,me){
+  // Remove old OTHER-player seats from tarea (not meStrip)
   $('tarea').querySelectorAll('.seat').forEach(e=>e.remove());
+
   const all=G2.players;
   const mi=all.findIndex(p=>p.id===myId);
-  const ordered=mi>=0?[all[mi],...all.slice(0,mi),...all.slice(mi+1)]:[...all];
-  const pos=getPos(Math.min(ordered.length,8));
+  // Others only (skip me) — placed around the oval
+  const others=mi>=0?[...all.slice(0,mi),...all.slice(mi+1)]:[...all];
+  // Position slots for other players only (no me slot needed)
+  const otherPos=getOtherPos(others.length);
   const numDeal=G2.players.filter(p=>(G2.settings.dealerType==='playing'||p.role!=='dealer')&&p.status!=='bust').length;
 
-  ordered.forEach((p,idx)=>{
-    if(idx>=pos.length)return;
-    const ps=pos[idx];
-    const isMe=p.id===myId;
+  others.forEach((p,idx)=>{
+    if(idx>=otherPos.length)return;
+    const ps=otherPos[idx];
     const apIdx=ap.findIndex(x=>x.id===p.id);
     const isCur=cur&&p.id===cur.id&&G2.phase!=='showdown';
 
     const div=document.createElement('div');
     let cls='seat';
-    if(isMe)cls+=' me';
     if(isCur)cls+=' myturn';
     if(p.status==='folded')cls+=' folded';
     if(p.status==='winner')cls+=' winner';
@@ -907,42 +944,17 @@ function renderSeats(G2,ap,cur,me){
     if(ps.xf)div.style.transform=ps.xf;
 
     const ini=(p.name||'?')[0].toUpperCase();
-
     let bdg='';
     if(apIdx===G2.dealerIdx)bdg+=`<span class="bdg bd-d">D</span>`;
     if(apIdx===G2.sbIdx)bdg+=`<span class="bdg bd-sb">SB</span>`;
     if(apIdx===G2.bbIdx)bdg+=`<span class="bdg bd-bb">BB</span>`;
-    if(isMe)bdg+=`<span class="bdg bd-me">You</span>`;
     if(p.status==='folded')bdg+=`<span class="bdg bd-fo">Fold</span>`;
     if(p.status==='allin')bdg+=`<span class="bdg bd-ai">All In</span>`;
     if(p.lastAction==='check')bdg+=`<span class="bdg bd-ck">Check</span>`;
     if(p.lastAction==='call')bdg+=`<span class="bdg bd-ca">Call</span>`;
     if(p.lastAction==='bet'||p.lastAction==='raise')bdg+=`<span class="bdg bd-bt">${p.lastAction}</span>`;
-    if(p.status==='winner')bdg+=`<span class="bdg bd-wi">👑 Win</span>`;
+    if(p.status==='winner')bdg+=`<span class="bdg bd-wi">👑</span>`;
     if(p.role==='dealer'&&G2.settings.dealerType==='non-playing')bdg+=`<span class="bdg bd-d">Dealer</span>`;
-
-    let cardsHtml='';
-    let handLabel='';
-    const pdi=p._di||0;
-    if(isMe&&(p.role!=='dealer'||G2.settings.dealerType==='playing')){
-      const myCards=(p.cards||[]).filter(c=>c&&!c.hidden);
-      cardsHtml=(p.cards||[]).map((c,ci)=>{
-        const el=mkCard(c,false);
-        if(G2.animPhase==='deal'&&c&&!c.hidden){
-          const slot=ci===0?pdi:numDeal+pdi;
-          el.classList.add('cd');el.style.animationDelay=(slot*0.13).toFixed(2)+'s';
-        }
-        return el.outerHTML;
-      }).join('');
-      // Show live hand strength once we have at least 2 cards
-      if(myCards.length>=2){
-        const comm=(G2.community||[]).filter(c=>c&&!c.hidden);
-        const hr=evalHand(myCards,comm);
-        if(hr&&hr.name&&hr.name!=='—'){
-          handLabel=`<div class="s-hand-label">${hr.name}</div>`;
-        }
-      }
-    }
 
     div.innerHTML=`
       <div class="s-top">
@@ -950,12 +962,83 @@ function renderSeats(G2,ap,cur,me){
         <div class="s-info"><div class="s-name">${p.name}</div><div class="s-chips">${p.chips.toLocaleString()}</div></div>
       </div>
       ${bdg?`<div class="s-bdg">${bdg}</div>`:''}
-      ${cardsHtml?`<div class="s-cards">${cardsHtml}</div>`:''}
-      ${handLabel}
       ${p.bet>0?`<div class="s-bet">Bet: ${p.bet}</div>`:''}
     `;
     $('tarea').appendChild(div);
   });
+
+  // Render ME in the dedicated me-strip below the table
+  renderMeStrip(G2,ap,cur,me,numDeal);
+}
+
+function renderMeStrip(G2,ap,cur,me,numDeal){
+  const strip=$('meStrip');
+  strip.innerHTML='';
+  if(!me)return;
+  const isMyTurn=cur&&cur.id===myId&&G2.phase!=='showdown'&&G2.phase!=='ended';
+  const apIdx=ap.findIndex(x=>x.id===myId);
+
+  let cls='me-seat';
+  if(isMyTurn)cls+=' myturn';
+  if(me.status==='folded')cls+=' folded';
+  if(me.status==='winner')cls+=' winner';
+
+  const ini=(me.name||'?')[0].toUpperCase();
+  const pdi=me._di||0;
+
+  // Build cards
+  let cardsHtml='';
+  let handStr='';
+  if(me.role!=='dealer'||G2.settings.dealerType==='playing'){
+    const myCards=(me.cards||[]).filter(c=>c&&!c.hidden);
+    cardsHtml=(me.cards||[]).map((c,ci)=>{
+      const el=mkCard(c,false); // full size cards for me
+      if(G2.animPhase==='deal'&&c&&!c.hidden){
+        const slot=ci===0?pdi:numDeal+pdi;
+        el.classList.add('cd');el.style.animationDelay=(slot*0.13).toFixed(2)+'s';
+      }
+      return el.outerHTML;
+    }).join('');
+    if(myCards.length>=2){
+      const comm=(G2.community||[]).filter(c=>c&&!c.hidden);
+      const hr=evalHand(myCards,comm);
+      if(hr&&hr.name&&hr.name!=='—') handStr=hr.name;
+    }
+  }
+
+  // Badges
+  let bdg='';
+  if(apIdx===G2.dealerIdx)bdg+=`<span class="bdg bd-d">D</span>`;
+  if(apIdx===G2.sbIdx)bdg+=`<span class="bdg bd-sb">SB</span>`;
+  if(apIdx===G2.bbIdx)bdg+=`<span class="bdg bd-bb">BB</span>`;
+  bdg+=`<span class="bdg bd-me">You</span>`;
+  if(me.status==='folded')bdg+=`<span class="bdg bd-fo">Folded</span>`;
+  if(me.status==='allin')bdg+=`<span class="bdg bd-ai">All In</span>`;
+  if(me.lastAction==='check')bdg+=`<span class="bdg bd-ck">Check</span>`;
+  if(me.lastAction==='call')bdg+=`<span class="bdg bd-ca">Call</span>`;
+  if(me.lastAction==='bet'||me.lastAction==='raise')bdg+=`<span class="bdg bd-bt">${me.lastAction}</span>`;
+  if(me.status==='winner')bdg+=`<span class="bdg bd-wi">👑 Win</span>`;
+
+  const div=document.createElement('div');
+  div.className=cls;
+  div.innerHTML=`
+    <div class="me-left">
+      <div class="s-av">${ini}</div>
+      <div class="s-info">
+        <div class="s-name">${me.name}</div>
+        <div class="s-chips">${me.chips.toLocaleString()}</div>
+      </div>
+    </div>
+    <div class="me-center">
+      <div class="me-cards">${cardsHtml||'<span style="font-size:.6rem;color:var(--mut)">—</span>'}</div>
+      ${handStr?`<div class="me-hand">${handStr}</div>`:''}
+    </div>
+    <div class="me-right">
+      <div class="me-bdg">${bdg}</div>
+      ${me.bet>0?`<div class="me-bet">Bet: ${me.bet}</div>`:''}
+    </div>
+  `;
+  strip.appendChild(div);
 }
 
 function mkCard(card,small){
