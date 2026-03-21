@@ -96,6 +96,11 @@ body{background:var(--bg);color:var(--txt)}
 .pb-showdown{background:rgba(232,184,75,.22);border-color:var(--gold);color:var(--gold2)}
 .pb-ended{background:rgba(90,90,90,.14);border-color:rgba(90,90,90,.3);color:var(--mut)}
 .rnl{font-size:.68rem;color:var(--mut);font-family:'Cinzel',serif}
+.fs-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
+  border-radius:6px;color:var(--gold);font-size:.9rem;width:28px;height:28px;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  transition:all .18s;padding:0;line-height:1}
+.fs-btn:hover{background:rgba(232,184,75,.15);border-color:var(--gold)}
 
 /* TURN STRIP */
 .tstrip{flex-shrink:0;padding:4px;text-align:center;font-family:'Cinzel',serif;
@@ -186,6 +191,10 @@ body{background:var(--bg);color:var(--txt)}
 .bd-wi{background:rgba(232,184,75,.15);border-color:var(--gold);color:var(--gold2)}
 .s-cards{display:flex;gap:3px;justify-content:center;margin-top:2px}
 .s-bet{font-size:.54rem;color:var(--gold);text-align:center;margin-top:1px;min-height:10px}
+.s-hand-label{font-family:'Cinzel',serif;font-size:.58rem;color:var(--gold2);text-align:center;
+  margin-top:3px;letter-spacing:.04em;font-weight:600;
+  text-shadow:0 0 8px rgba(232,184,75,.4);
+  border-top:1px solid rgba(232,184,75,.15);padding-top:3px}
 
 /* CARDS */
 .card{border-radius:5px;background:#f4efe6;border:1px solid rgba(0,0,0,.08);
@@ -380,6 +389,7 @@ body{background:var(--bg);color:var(--txt)}
     <div class="tbar-r">
       <span id="pbadge" class="pb pb-preflop">Pre-Flop</span>
       <span class="rnl" id="rnl">Round 1</span>
+      <button class="fs-btn" id="fsBtn" onclick="toggleFS()" title="Fullscreen">⛶</button>
     </div>
   </div>
   <div class="tstrip hidden" id="tstrip">▶ YOUR TURN — Make your move</div>
@@ -912,8 +922,10 @@ function renderSeats(G2,ap,cur,me){
     if(p.role==='dealer'&&G2.settings.dealerType==='non-playing')bdg+=`<span class="bdg bd-d">Dealer</span>`;
 
     let cardsHtml='';
+    let handLabel='';
     const pdi=p._di||0;
     if(isMe&&(p.role!=='dealer'||G2.settings.dealerType==='playing')){
+      const myCards=(p.cards||[]).filter(c=>c&&!c.hidden);
       cardsHtml=(p.cards||[]).map((c,ci)=>{
         const el=mkCard(c,false);
         if(G2.animPhase==='deal'&&c&&!c.hidden){
@@ -922,6 +934,14 @@ function renderSeats(G2,ap,cur,me){
         }
         return el.outerHTML;
       }).join('');
+      // Show live hand strength once we have at least 2 cards
+      if(myCards.length>=2){
+        const comm=(G2.community||[]).filter(c=>c&&!c.hidden);
+        const hr=evalHand(myCards,comm);
+        if(hr&&hr.name&&hr.name!=='—'){
+          handLabel=`<div class="s-hand-label">${hr.name}</div>`;
+        }
+      }
     }
 
     div.innerHTML=`
@@ -931,6 +951,7 @@ function renderSeats(G2,ap,cur,me){
       </div>
       ${bdg?`<div class="s-bdg">${bdg}</div>`:''}
       ${cardsHtml?`<div class="s-cards">${cardsHtml}</div>`:''}
+      ${handLabel}
       ${p.bet>0?`<div class="s-bet">Bet: ${p.bet}</div>`:''}
     `;
     $('tarea').appendChild(div);
@@ -1025,6 +1046,31 @@ function nextRound(){
 }
 
 (function(){const p=new URLSearchParams(location.search).get('join');if(p)$('joinCode').value=location.href;})();
+
+// Fullscreen toggle — hides browser URL bar on mobile
+function toggleFS(){
+  const el=document.documentElement;
+  if(!document.fullscreenElement){
+    (el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen||function(){}).call(el);
+    $('fsBtn').textContent='⛶';
+    $('fsBtn').title='Exit Fullscreen';
+  }else{
+    (document.exitFullscreen||document.webkitExitFullscreen||document.mozCancelFullScreen||document.msExitFullscreen||function(){}).call(document);
+    $('fsBtn').textContent='⛶';
+    $('fsBtn').title='Fullscreen';
+  }
+}
+// Update button icon when fullscreen changes (e.g. user presses Escape)
+document.addEventListener('fullscreenchange',()=>{
+  const fs=!!document.fullscreenElement;
+  $('fsBtn').textContent=fs?'✕':'⛶';
+  $('fsBtn').title=fs?'Exit Fullscreen':'Fullscreen';
+});
+document.addEventListener('webkitfullscreenchange',()=>{
+  const fs=!!(document.fullscreenElement||document.webkitFullscreenElement);
+  $('fsBtn').textContent=fs?'✕':'⛶';
+  $('fsBtn').title=fs?'Exit Fullscreen':'Fullscreen';
+});
 </script>
 </body>
 </html>
