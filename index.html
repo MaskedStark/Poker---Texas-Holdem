@@ -899,7 +899,18 @@ function renderComm(G2){
   }
 }
 
-// getPos removed — use getOtherPos
+// Positions for OTHER players around the oval (me is in me-strip below)
+function getOtherPos(n){
+  return[
+    {l:'50%', t:'4%', xf:'translateX(-50%)'},   // top-center
+    {l:'6%',  t:'24%',xf:''},                    // left
+    {l:'80%', t:'24%',xf:''},                    // right
+    {l:'22%', t:'4%', xf:''},                    // top-left
+    {l:'63%', t:'4%', xf:''},                    // top-right
+    {l:'4%',  t:'60%',xf:''},                    // lower-left
+    {l:'81%', t:'60%',xf:''},                    // lower-right
+  ].slice(0,n);
+}
 
 function renderSeats(G2,ap,cur,me){
   // Remove old OTHER-player seats from tarea (not meStrip)
