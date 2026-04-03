@@ -167,6 +167,7 @@ body{background:var(--bg);color:var(--txt)}
 .seat.folded{opacity:.3}
 .seat.winner{border-color:var(--gold2)!important;animation:wg .9s ease-out 5}
 @keyframes wg{0%{box-shadow:0 0 0 0 rgba(255,217,122,.8)}50%{box-shadow:0 0 0 14px rgba(255,217,122,0)}100%{box-shadow:0 0 0 0 rgba(255,217,122,0)}}
+.seat.bankrupt{opacity:.5;border:1px dashed rgba(255,204,103,.45);background:rgba(18,22,18,.75)}
 .seat.bust{opacity:.15}
 
 /* ME STRIP */
@@ -437,6 +438,7 @@ body{background:var(--bg);color:var(--txt)}
     <div class="tbar-r">
       <span id="pbadge" class="pb pb-preflop">Pre-Flop</span>
       <span class="rnl" id="rnl">Round 1</span>
+      <button class="fs-btn" id="newGameBtn" onclick="requestNewGame()" title="Request new game">★</button>
       <button class="fs-btn" id="fsBtn" onclick="toggleFS()" title="Fullscreen">⛶</button>
     </div>
   </div>
@@ -644,6 +646,7 @@ function combos(arr,k){
 // ════════════════════════════════════════════════
 let peer=null,hostConn=null,guestConns={};
 let myId='',myName='',amHost=false;
+let turnIdleTimer=null;
 function initPeer(){
   return new Promise((res,rej)=>{
     const config = {
@@ -740,6 +743,8 @@ function onHost(conn,d){
   }
   if(d.type==='ACTION')handleAction(d);
   if(d.type==='READY')handleReady(d.pid);
+  if(d.type==='NEWGAME_REQUEST')handleNewGameRequest(d.by);
+  if(d.type==='NEWGAME_APPROVAL')handleNewGameApproval(d.pid);
 }
 
 function onGuest(d){
@@ -755,9 +760,51 @@ function onGuest(d){
 function refreshWait(){
   $('waitList').innerHTML=G.players.map(p=>`<div class="ppill"><span class="dot"></span><span>${p.name}</span><span class="rt">${p.id===myId?'You · ':''}${p.role==='dealer'?'Dealer':'Player'}</span></div>`).join('');
   const n=G.players.filter(p=>p.role!=='dealer'||G.settings.dealerType==='playing').length;
-  const ok=n>=2;$('startBtn').disabled=!ok;
+  const ok=n>=2; $('startBtn').disabled=!ok;
   $('startBtn').textContent=ok?`▶ Start Game (${G.players.length} ready)`:`Need at least 2 players`;
 }
+
+function requestNewGame(){
+  if(!amHost){showToast('Only host can request new game');return;}
+  G.pendingNewGame={active:true,by:myId,approvals:[myId],okRequired:G.players.filter(p=>p.status!=='bankrupt').map(p=>p.id)};
+  broadcastState();
+}
+
+function handleNewGameRequest(by){
+  if(!amHost) return;
+  if(!G.pendingNewGame){
+    G.pendingNewGame={active:true,by,approvals:[by],okRequired:G.players.filter(p=>p.status!=='bankrupt').map(p=>p.id)};
+  }
+  broadcastState();
+}
+
+function handleNewGameApproval(pid){
+  if(!amHost||!G.pendingNewGame||!G.pendingNewGame.active) return;
+  if(!G.pendingNewGame.approvals.includes(pid)) G.pendingNewGame.approvals.push(pid);
+  const allOk=G.pendingNewGame.okRequired.every(id=>G.pendingNewGame.approvals.includes(id));
+  if(allOk){
+    startNewGame();
+  } else {
+    broadcastState();
+  }
+}
+
+function startNewGame(){
+  if(!amHost) return;
+  G.pendingNewGame=null;
+  G.phase='preflop';G.round=1;G.pot=0;G.community=[];G.currentBet=G.settings.bb;G.minRaise=G.settings.bb;G.readySet=[];G.actionsSinceLastRaise=0;G.animPhase='';
+  G.players.forEach(p=>{if(p.chips<=0){p.status='bankrupt';p.role='spectator';}else{p.status='active';if(p.role!=='dealer')p.role='player';}p.bet=0;p.totalBet=0;p.lastAction='';p.cards=[];});
+  dealRound(true);
+  broadcastState();
+}
+
+function approveNewGame(){
+  if(amHost)return;
+  if(!hostConn){showToast('Not connected to host');return;}
+  try{hostConn.send({type:'NEWGAME_APPROVAL',pid:myId});showToast('New game approval submitted');}
+  catch(e){showToast('Connection lost');}
+}
+
 
 // ════════════════════════════════════════════════
 //  GAME LOGIC
@@ -775,9 +822,9 @@ function launchGame(){
   hide('waitScreen');hide('lobbyScreen');show('gameScreen');
 }
 
-// ── activePlayers: players who participate in a hand (not bust, not non-playing dealer)
+// ── activePlayers: players who participate in a hand (not bankrupt, not non-playing dealer)
 function activePlayers(){
-  return G.players.filter(p=>(p.role!=='dealer'||G.settings.dealerType==='playing')&&p.status!=='bust');
+  return G.players.filter(p=>(p.role!=='dealer'||G.settings.dealerType==='playing')&&p.status!=='bankrupt');
 }
 
 // ── shouldSkipTurn: skip someone who already folded or is all-in or is non-playing dealer
@@ -810,7 +857,7 @@ function dealRound(fresh){
 
   G.players.forEach(p=>{
     p.cards=[];p.bet=0;p.totalBet=0;p.lastAction='';
-    if(p.status!=='bust')p.status='active';
+    if(p.status!=='bankrupt')p.status='active';
     p._di=0;
   });
 
@@ -834,20 +881,7 @@ function dealRound(fresh){
   addLog(`🃏 <span class="lw">Round ${G.round}</span> — Dealer: ${ap[G.dealerIdx]?.name} · SB: ${sbn} · BB: ${bbn}`);
   qBanner('🃏 Dealing Cards...','',1400,0);
   qBanner(`♠ Round ${G.round} ♠`,`SB: ${sbn} (${G.settings.sb})  ·  BB: ${bbn} (${G.settings.bb})`,2200,1600);
-}
-
-// ── READY SYSTEM ─────────────────────────────
-function handleReady(pid){
-  if(!amHost)return;
-  if(!G.readySet)G.readySet=[];
-  if(!G.readySet.includes(pid))G.readySet.push(pid);
-
-  // Check if everyone who can play next round is ready
-  const eligible=G.players.filter(p=>p.chips>0||(p.role==='dealer'&&G.settings.dealerType==='non-playing'));
-  const allReady=eligible.every(p=>G.readySet.includes(p.id));
-
-  broadcastState(); // update UI showing who is ready
-
+  scheduleIdleFold();
   if(allReady){
     // Start next round
     G.players=G.players.filter(p=>p.chips>0||(p.role==='dealer'&&G.settings.dealerType==='non-playing'));
@@ -915,6 +949,7 @@ function handleAction(d){
   }
 
   G.actionsSinceLastRaise++;
+  clearIdleFold();
   nextTurn();
 }
 
@@ -969,7 +1004,32 @@ function nextTurn(){
     return;
   }
   G.turnIdx=next;
+  scheduleIdleFold();
   broadcastState();
+}
+
+function scheduleIdleFold(){
+  if(turnIdleTimer){clearTimeout(turnIdleTimer);turnIdleTimer=null;}
+  if(G.phase==='showdown'||G.phase==='ended')return;
+  const ap=activePlayers();
+  const cur=ap[G.turnIdx];
+  if(!cur||cur.status!=='active')return;
+  turnIdleTimer=setTimeout(()=>{
+    if(G.phase==='showdown'||G.phase==='ended')return;
+    const ap2=activePlayers();
+    const cur2=ap2[G.turnIdx];
+    if(cur2&&cur2.id===cur.id){
+      cur2.status='folded';cur2.lastAction='fold';
+      addLog(`<span class="lw">${cur2.name}</span> timed out and folded`);
+      G.pendingActionBanner={name:cur2.name,action:'fold',sub:'timeout',color:'#ff5555'};
+      broadcastState();
+      nextTurn();
+    }
+  },60000);
+}
+
+function clearIdleFold(){
+  if(turnIdleTimer){clearTimeout(turnIdleTimer);turnIdleTimer=null;}
 }
 
 function nextPhase(){
@@ -1035,9 +1095,24 @@ function doShowdown(){
   wins.forEach(p=>{p.chips+=share;p.status='winner';});
   if(G.pot%wins.length&&wins[0])wins[0].chips+=G.pot%wins.length;
   addLog(`🏆 <span class="lw">${wins.map(w=>w.name).join(' & ')}</span> wins with <strong>${el[0]?.handResult?.name}</strong>`);
-  G.players.forEach(p=>{if(p.chips<=0&&p.status!=='winner')p.status='bust';});
+  G.players.forEach(p=>{
+    if(p.chips<=0&&p.status!=='winner'){
+      p.status='bankrupt';
+      p.role='spectator';
+    }
+  });
+  checkForGameOver();
   broadcastState();
   setTimeout(()=>document.querySelectorAll('.seat.winner .s-chips,.me-seat.winner .s-chips').forEach(e=>{e.classList.add('cw');setTimeout(()=>e.classList.remove('cw'),2000);}),500);
+}
+
+function checkForGameOver(){
+  const alive=G.players.filter(p=>p.chips>0 && p.status!=='bankrupt');
+  if(alive.length===1){
+    G.phase='ended';
+    G.pendingNewGame={active:true,by:alive[0].id,approvals:[],msg:'Only one active player left; start new game?'};
+    addLog(`⚠️ <span class="lw">${alive[0].name}</span> is the last active player. Requesting restart.`);
+  }
 }
 
 // ════════════════════════════════════════════════
@@ -1048,8 +1123,8 @@ function serialise(){return JSON.parse(JSON.stringify(G));}
 function sanitise(state,pid){
   const s=JSON.parse(JSON.stringify(state));
   const me=s.players.find(p=>p.id===pid);
-  const isDV=me&&me.role==='dealer'&&s.settings.dealerType==='non-playing';
-  if(!isDV){
+  const canSeeAll = me && ((me.role==='dealer'&&s.settings.dealerType==='non-playing') || me.status==='bankrupt' || me.role==='spectator');
+  if(!canSeeAll){
     s.players.forEach(p=>{
       if(p.id!==pid&&s.phase!=='showdown'){
         p.cards=(p.cards||[]).map(()=>({hidden:true}));
@@ -1113,9 +1188,26 @@ function renderGame(){
 
   renderSeats(LG,ap,cur,me);
   if(isDV){show('dv');renderDV(LG);}else hide('dv');
+  const pending=LG.pendingNewGame&&LG.pendingNewGame.active;
+  if(pending){
+    show('sdov');renderShowdown(LG,ap);
+    const reqBy=LG.players.find(p=>p.id===LG.pendingNewGame.by);
+    const approved=LG.pendingNewGame.approvals||[];
+    const need=LG.pendingNewGame.okRequired||[];
+    const info=`<div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--mut)">New game requested by <strong>${reqBy?.name||'Host'}</strong>. (${approved.length}/${need.length} OK)</div>`;
+    if(!amHost&&me&&me.status!=='bankrupt'&&!approved.includes(myId)){
+      $('abtns').innerHTML=`${info}<button class="ab ab-rdy" onclick="approveNewGame()">OK, Start New Game</button>`;
+    } else if(amHost){
+      $('abtns').innerHTML=`${info}<div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--grn)">Waiting for players to approve...</div>`;
+    } else {
+      $('abtns').innerHTML=info;
+    }
+    hide('betrow');hide('qbtns');
+    return;
+  }
+
   if(LG.phase==='showdown'||LG.phase==='ended'){
     show('sdov');renderShowdown(LG,ap);
-    // Show ready button or waiting msg in action panel
     renderReadyPanel(LG,me);
   } else {
     hide('sdov');
@@ -1172,7 +1264,7 @@ function renderSeats(G2,ap,cur,me){
     if(isCur)cls+=' myturn';
     if(p.status==='folded')cls+=' folded';
     if(p.status==='winner')cls+=' winner';
-    if(p.status==='bust')cls+=' bust';
+    if(p.status==='bankrupt')cls+=' bankrupt';
     div.className=cls;
     div.style.left=ps.l;
     if(ps.t)div.style.top=ps.t;
@@ -1220,6 +1312,7 @@ function renderMeStrip(G2,ap,cur,me,numDeal){
   if(isMyTurn)cls+=' myturn';
   if(me.status==='folded')cls+=' folded';
   if(me.status==='winner')cls+=' winner';
+  if(me.status==='bankrupt')cls+=' bankrupt';
 
   const ini=(me.name||'?')[0].toUpperCase();
   const pdi=me._di||0;
@@ -1250,6 +1343,7 @@ function renderMeStrip(G2,ap,cur,me,numDeal){
   bdg+=`<span class="bdg bd-me">You</span>`;
   if(me.status==='folded')bdg+=`<span class="bdg bd-fo">Folded</span>`;
   if(me.status==='allin')bdg+=`<span class="bdg bd-ai">All In</span>`;
+  if(me.status==='bankrupt')bdg+=`<span class="bdg bd-fo">Bankrupt</span>`;
   if(me.lastAction==='check')bdg+=`<span class="bdg bd-ck">Check</span>`;
   if(me.lastAction==='call')bdg+=`<span class="bdg bd-ca">Call</span>`;
   if(me.lastAction==='bet'||me.lastAction==='raise')bdg+=`<span class="bdg bd-bt">${me.lastAction}</span>`;
