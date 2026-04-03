@@ -759,7 +759,7 @@ function onGuest(d){
 
 function refreshWait(){
   $('waitList').innerHTML=G.players.map(p=>`<div class="ppill"><span class="dot"></span><span>${p.name}</span><span class="rt">${p.id===myId?'You · ':''}${p.role==='dealer'?'Dealer':'Player'}</span></div>`).join('');
-  const n=G.players.filter(p=>p.role!=='dealer'||G.settings.dealerType==='playing').length;
+  const n=G.players.filter(p=>p.status!=='bankrupt').length;
   const ok=n>=2; $('startBtn').disabled=!ok;
   $('startBtn').textContent=ok?`▶ Start Game (${G.players.length} ready)`:`Need at least 2 players`;
 }
