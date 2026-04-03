@@ -812,11 +812,18 @@ function approveNewGame(){
 // ════════════════════════════════════════════════
 function startGame(){
   if(!amHost)return;
-  dealRound(true);
-  const s=serialise();
-  for(const[id,conn] of Object.entries(guestConns))conn.send({type:'START',state:sanitise(s,id)});
-  launchGame();
-  setTimeout(()=>applyState(sanitise(s,myId)),100);
+  try{
+    dealRound(true);
+    const s=serialise();
+    for(const[id,conn] of Object.entries(guestConns)){
+      try{conn.send({type:'START',state:sanitise(s,id)});}catch(e){console.error('Failed to send START to',id,e);}
+    }
+    launchGame();
+    setTimeout(()=>applyState(sanitise(s,myId)),100);
+  }catch(e){
+    console.error('startGame error:',e);
+    showToast('Error starting game: '+e.message);
+  }
 }
 
 function launchGame(){
@@ -863,7 +870,7 @@ function dealRound(fresh){
   });
 
   const dealP=(G.settings.dealerType==='playing'?G.players:G.players.filter(p=>p.role!=='dealer'))
-    .filter(p=>p.status!=='bust');
+    .filter(p=>p.status!=='bankrupt');
   dealP.forEach((p,i)=>{p.cards=[null,null];p._di=i;});
   dealP.forEach(p=>p.cards[0]=G.deck.pop());
   dealP.forEach(p=>p.cards[1]=G.deck.pop());
@@ -883,6 +890,20 @@ function dealRound(fresh){
   qBanner('🃏 Dealing Cards...','',1400,0);
   qBanner(`♠ Round ${G.round} ♠`,`SB: ${sbn} (${G.settings.sb})  ·  BB: ${bbn} (${G.settings.bb})`,2200,1600);
   scheduleIdleFold();
+}
+
+// ── READY SYSTEM ─────────────────────────────
+function handleReady(pid){
+  if(!amHost)return;
+  if(!G.readySet)G.readySet=[];
+  if(!G.readySet.includes(pid))G.readySet.push(pid);
+
+  // Check if everyone who can play next round is ready
+  const eligible=G.players.filter(p=>p.chips>0||(p.role==='dealer'&&G.settings.dealerType==='non-playing'));
+  const allReady=eligible.every(p=>G.readySet.includes(p.id));
+
+  broadcastState(); // update UI showing who is ready
+
   if(allReady){
     // Start next round
     G.players=G.players.filter(p=>p.chips>0||(p.role==='dealer'&&G.settings.dealerType==='non-playing'));
@@ -1164,7 +1185,7 @@ function applyState(state){
 // ════════════════════════════════════════════════
 function renderGame(){
   if(!LG)return;
-  const ap=LG.players.filter(p=>(p.role!=='dealer'||LG.settings.dealerType==='playing')&&p.status!=='bust');
+  const ap=LG.players.filter(p=>(p.role!=='dealer'||LG.settings.dealerType==='playing')&&p.status!=='bankrupt');
   const cur=ap[LG.turnIdx];
   const me=LG.players.find(p=>p.id===myId);
   const isMyTurn=cur&&cur.id===myId&&LG.phase!=='showdown'&&LG.phase!=='ended';
@@ -1250,7 +1271,7 @@ function renderSeats(G2,ap,cur,me){
   const mi=all.findIndex(p=>p.id===myId);
   const others=mi>=0?[...all.slice(0,mi),...all.slice(mi+1)]:[...all];
   const otherPos=getOtherPos(others.length);
-  const numDeal=G2.players.filter(p=>(G2.settings.dealerType==='playing'||p.role!=='dealer')&&p.status!=='bust').length;
+  const numDeal=G2.players.filter(p=>(G2.settings.dealerType==='playing'||p.role!=='dealer')&&p.status!=='bankrupt').length;
   const readySet=G2.readySet||[];
 
   others.forEach((p,idx)=>{
@@ -1456,7 +1477,7 @@ function dispatch(act,amt){
 
 function renderShowdown(G2,ap){
   const comm=(G2.community||[]).filter(c=>c&&!c.hidden);
-  const el=ap.filter(p=>p.status!=='folded'&&p.status!=='bust');
+  const el=ap.filter(p=>p.status!=='folded'&&p.status!=='bankrupt');
   el.forEach(p=>{
     const hole=(p.cards||[]).filter(c=>c&&!c.hidden);
     p._r=hole.length>0?evalHand(hole,comm):(p.handResult||{tier:0,name:'—',desc:'',score:0});
