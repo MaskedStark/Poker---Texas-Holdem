@@ -822,13 +822,13 @@ function handleAction(d){
 
   if(act==='fold'){
     p.status='folded';p.lastAction='fold';
-    addLog(`<span class="lw">${p.name}</span> folds`);
+    addLog(`<span class="lw">${p.name}</span> folded`);
     G.pendingActionBanner={name:p.name,action:'fold',sub:'',color:'#ff5555'};
   }
   else if(act==='check'){
     if(G.currentBet>p.bet){showToast('Cannot check');return;}
     p.lastAction='check';
-    addLog(`<span class="lw">${p.name}</span> checks`);
+    addLog(`<span class="lw">${p.name}</span> checked`);
     G.pendingActionBanner={name:p.name,action:'check',sub:'',color:'#00c853'};
   }
   else if(act==='call'){
@@ -847,8 +847,8 @@ function handleAction(d){
     if(nt>G.currentBet){G.minRaise=nt-G.currentBet;G.currentBet=nt;G.actionsSinceLastRaise=0;}
     if(p.chips===0)p.status='allin';
     p.lastAction=G.currentBet>G.settings.bb?'raise':'bet';
-    const lbl=p.lastAction==='raise'?'raises':'bets';
-    addLog(`<span class="lw">${p.name}</span> ${lbl} to ${nt} · Pot: ${G.pot}`);
+    const lbl=p.lastAction==='raise'?'raised to 100':'bet 50';
+    addLog(`<span class="lw">${p.name}</span> ${lbl}`);
     G.pendingActionBanner={name:p.name,action:p.lastAction,sub:`to ${nt} · pot ${G.pot}`,color:'#e8b84b'};
   }
   else if(act==='allin'){
