@@ -794,7 +794,7 @@ function startNewGame(){
   if(!amHost) return;
   G.pendingNewGame=null;
   G.phase='preflop';G.round=1;G.pot=0;G.community=[];G.currentBet=G.settings.bb;G.minRaise=G.settings.bb;G.readySet=[];G.actionsSinceLastRaise=0;G.animPhase='';
-  G.players.forEach(p=>{if(p.chips<=0){p.status='bankrupt';p.role='spectator';}else{p.status='active';if(p.role!=='dealer')p.role='player';}p.bet=0;p.totalBet=0;p.lastAction='';p.cards=[];});
+  G.players.forEach(p=>{p.chips=G.settings.chips;p.status='active';if(p.role!=='dealer')p.role='player';p.bet=0;p.totalBet=0;p.lastAction='';p.cards=[];});
   dealRound(true);
   broadcastState();
 }
