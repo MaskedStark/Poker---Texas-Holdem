@@ -602,7 +602,14 @@ let peer=null,hostConn=null,guestConns={};
 let myId='',myName='',amHost=false;
 function initPeer(){
   return new Promise((res,rej)=>{
-    const p=new Peer(undefined,{debug:0});let done=false;
+    const config = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'turn:turn.anyfirewall.com:443?transport=tcp', username: 'webrtc', credential: 'webrtc' }
+      ]
+    };
+    const p=new Peer(undefined,{debug:0, config});let done=false;
     p.on('open',id=>{myId=id;if(!done){done=true;res(p);}});
     p.on('error',e=>{if(!done){done=true;rej(e);}else showToast('Net: '+e.type);});
   });
