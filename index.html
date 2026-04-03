@@ -836,7 +836,7 @@ function handleAction(d){
     p.chips-=pay;p.bet+=pay;p.totalBet+=pay;G.pot+=pay;
     if(p.chips===0)p.status='allin';
     p.lastAction='call';
-    addLog(`<span class="lw">${p.name}</span> calls ${pay}`);
+    addLog(`<span class="lw">${p.name}</span> calls <strong>${pay}</strong>`);
     G.pendingActionBanner={name:p.name,action:'call',sub:`${pay} chips`,color:'#448aff'};
   }
   else if(act==='bet'||act==='raise'){
@@ -847,7 +847,7 @@ function handleAction(d){
     if(nt>G.currentBet){G.minRaise=nt-G.currentBet;G.currentBet=nt;G.actionsSinceLastRaise=0;}
     if(p.chips===0)p.status='allin';
     p.lastAction=G.currentBet>G.settings.bb?'raise':'bet';
-    const lbl=p.lastAction==='raise'?'raised to 100':'bet 50';
+    const lbl=p.lastAction==='raise'?'raised to <strong>100</strong>':'bet <strong>50</strong>';
     addLog(`<span class="lw">${p.name}</span> ${lbl}`);
     G.pendingActionBanner={name:p.name,action:p.lastAction,sub:`to ${nt} · pot ${G.pot}`,color:'#e8b84b'};
   }
@@ -856,7 +856,7 @@ function handleAction(d){
     p.chips=0;p.bet=nt;p.totalBet+=total;G.pot+=total;
     if(nt>G.currentBet){G.minRaise=nt-G.currentBet;G.currentBet=nt;G.actionsSinceLastRaise=0;}
     p.status='allin';p.lastAction='allin';
-    addLog(`<span class="lw">${p.name}</span> ALL IN — ${total}! Pot: ${G.pot}`);
+    addLog(`<span class="lw">${p.name}</span> ALL IN — <strong>${total}</strong>! Pot: <strong>${G.pot}</strong>`);
     G.pendingActionBanner={name:p.name,action:'allin',sub:`${total} chips · pot ${G.pot}`,color:'#ff4444'};
   }
 
