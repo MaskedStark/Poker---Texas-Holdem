@@ -1109,34 +1109,38 @@ function runToShowdown(){
 }
 
 function runAllInShowdown(){
-  // sequential board progression for all-in scenarios
+  // sequential board progression for all-in scenarios, with normal phase banners
   G.phase='flop';
   G.community=[G.deck.pop(),G.deck.pop(),G.deck.pop()];
   G.animPhase='flop';
+  qBanner('♥ The Flop ♥','',2000,0);
   broadcastState();
 
   setTimeout(()=>{
     G.phase='turn';
     G.community.push(G.deck.pop());
     G.animPhase='turn';
+    qBanner('♦ The Turn ♦','',2000,0);
     broadcastState();
 
     setTimeout(()=>{
       G.phase='river';
       G.community.push(G.deck.pop());
       G.animPhase='river';
+      qBanner('♣ The River ♣','',2000,0);
       broadcastState();
 
       setTimeout(()=>{
         G.phase='showdown';
         G.animPhase='showdown';
+        qBanner('★ Showdown ★','',2200,0);
         broadcastState();
         doShowdown();
-      },500);
+      },1000);
 
-    },500);
+    },1000);
 
-  },500);
+  },1000);
 }
 
 function doShowdown(){
