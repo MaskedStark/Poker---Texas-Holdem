@@ -521,9 +521,12 @@ function showActionBanner(name,action,sub,color){
   const colors={fold:'#ff5555',check:'#00c853',call:'#448aff',raise:'#e8b84b',bet:'#e8b84b',allin:'#ff4444'};
   const cl=colors[action]||'#ddd5c8';
   const dur=2000;
+  let actionText = action.toUpperCase();
+  if(action === 'raise') actionText = 'RAISED';
+  const bannerText = sub ? `${name}, ${actionText} : <strong>${sub}</strong>` : `${name}, ${actionText}`;
   const ov=document.createElement('div');ov.className='act-bnov';
   ov.style.cssText=`animation:bnFade ${dur}ms forwards`;
-  ov.innerHTML=`<div class="act-bnbx"><div class="act-bn1" style="color:${cl}">${name} — ${action.toUpperCase()}</div>${sub?`<div class="act-bn2">${sub}</div>`:''}</div>`;
+  ov.innerHTML=`<div class="act-bnbx"><div class="act-bn1" style="color:${cl}">${bannerText}</div></div>`;
   document.body.appendChild(ov);
   setTimeout(()=>ov.remove(),dur+100);
 }
@@ -837,7 +840,7 @@ function handleAction(d){
     if(p.chips===0)p.status='allin';
     p.lastAction='call';
     addLog(`<span class="lw">${p.name}</span> calls <strong>${pay}</strong>`);
-    G.pendingActionBanner={name:p.name,action:'call',sub:`${pay} chips`,color:'#448aff'};
+    G.pendingActionBanner={name:p.name,action:'call',sub:`${pay}`,color:'#448aff'};
   }
   else if(act==='bet'||act==='raise'){
     const total=Math.min(parseInt(amt)||0,p.chips);if(total<=0){showToast('Invalid amount');return;}
@@ -849,7 +852,7 @@ function handleAction(d){
     p.lastAction=G.currentBet>G.settings.bb?'raise':'bet';
     const lbl=p.lastAction==='raise'?'raised to <strong>100</strong>':'bet <strong>50</strong>';
     addLog(`<span class="lw">${p.name}</span> ${lbl}`);
-    G.pendingActionBanner={name:p.name,action:p.lastAction,sub:`to ${nt} · pot ${G.pot}`,color:'#e8b84b'};
+    G.pendingActionBanner={name:p.name,action:p.lastAction,sub:`${nt}`,color:'#e8b84b'};
   }
   else if(act==='allin'){
     const total=p.chips;if(total<=0)return;const nt=p.bet+total;
@@ -857,7 +860,7 @@ function handleAction(d){
     if(nt>G.currentBet){G.minRaise=nt-G.currentBet;G.currentBet=nt;G.actionsSinceLastRaise=0;}
     p.status='allin';p.lastAction='allin';
     addLog(`<span class="lw">${p.name}</span> ALL IN — <strong>${total}</strong>! Pot: <strong>${G.pot}</strong>`);
-    G.pendingActionBanner={name:p.name,action:'allin',sub:`${total} chips · pot ${G.pot}`,color:'#ff4444'};
+    G.pendingActionBanner={name:p.name,action:'allin',sub:`${total}`,color:'#ff4444'};
   }
 
   G.actionsSinceLastRaise++;
