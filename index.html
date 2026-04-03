@@ -141,6 +141,8 @@ body{background:var(--bg);color:var(--txt)}
 
 /* POT */
 .pot-area{text-align:center}
+.sidepots{margin-top:4px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap}
+.pt{font-family:'Cinzel',serif;font-size:.5rem;color:var(--gold);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:3px 6px;}
 .potl{font-family:'Cinzel',serif;font-size:.5rem;letter-spacing:.2em;text-transform:uppercase;color:rgba(232,184,75,.5)}
 .potv{font-family:'Cinzel Decorative',serif;font-size:1.4rem;color:var(--gold2);text-shadow:0 0 20px rgba(232,184,75,.5);line-height:1}
 .pot-chips{display:flex;gap:3px;justify-content:center;margin-top:3px;flex-wrap:wrap}
@@ -451,6 +453,7 @@ body{background:var(--bg);color:var(--txt)}
         <div class="potl">Pot</div>
         <div class="potv" id="potv">0</div>
         <div class="pot-chips" id="potchips"></div>
+        <div class="sidepots" id="sidepots"></div>
       </div>
       <div class="comm" id="comm"></div>
       <div class="blinds" id="blinds"></div>
@@ -996,11 +999,10 @@ function nextTurn(){
     return;
   }
 
-  // ── Everyone left is all-in (or folded) → run board to showdown
+  // ── Everyone left is all-in (or folded) → run board to showdown with full progression
   if(stillActive.length===0&&stillAllin.length>=1){
-    // Brief broadcast so clients see last action, then run to showdown
     broadcastState();
-    setTimeout(()=>runToShowdown(),1200);
+    setTimeout(()=>runAllInShowdown(),500);
     return;
   }
 
@@ -1093,7 +1095,7 @@ function nextPhase(){
 }
 
 function runToShowdown(){
-  // Fill out the board
+  // Fill out the board (instant fallback)
   if(G.phase==='preflop'){
     G.community=[G.deck.pop(),G.deck.pop(),G.deck.pop(),G.deck.pop(),G.deck.pop()];
   }else if(G.phase==='flop'){
@@ -1101,7 +1103,40 @@ function runToShowdown(){
   }else if(G.phase==='turn'){
     G.community.push(G.deck.pop());
   }
+  G.phase='showdown';
+  broadcastState();
   doShowdown();
+}
+
+function runAllInShowdown(){
+  // sequential board progression for all-in scenarios
+  G.phase='flop';
+  G.community=[G.deck.pop(),G.deck.pop(),G.deck.pop()];
+  G.animPhase='flop';
+  broadcastState();
+
+  setTimeout(()=>{
+    G.phase='turn';
+    G.community.push(G.deck.pop());
+    G.animPhase='turn';
+    broadcastState();
+
+    setTimeout(()=>{
+      G.phase='river';
+      G.community.push(G.deck.pop());
+      G.animPhase='river';
+      broadcastState();
+
+      setTimeout(()=>{
+        G.phase='showdown';
+        G.animPhase='showdown';
+        broadcastState();
+        doShowdown();
+      },500);
+
+    },500);
+
+  },500);
 }
 
 function doShowdown(){
@@ -1110,19 +1145,53 @@ function doShowdown(){
   const ap=activePlayers();
   const el=ap.filter(p=>p.status!=='folded');
   el.forEach(p=>{p.handResult=evalHand(p.cards||[],G.community);});
-  el.sort((a,b)=>(b.handResult?.score||0)-(a.handResult?.score||0));
-  const top=el[0]?.handResult?.score||0;
-  const wins=el.filter(p=>p.handResult?.score===top);
-  const share=Math.floor(G.pot/wins.length);
-  wins.forEach(p=>{p.chips+=share;p.status='winner';});
-  if(G.pot%wins.length&&wins[0])wins[0].chips+=G.pot%wins.length;
-  addLog(`🏆 <span class="lw">${wins.map(w=>w.name).join(' & ')}</span> wins with <strong>${el[0]?.handResult?.name}</strong>`);
+
+  // Build sidepot distribution from total bets (sets who can win each portion)
+  const contributing=G.players.filter(p=>p.totalBet>0);
+  const tiers=[...new Set(contributing.map(p=>p.totalBet))].sort((a,b)=>a-b);
+  let prev=0;
+  const payouts={};
+
+  for(const level of tiers){
+    const layer=level-prev;
+    const participants=G.players.filter(p=>p.totalBet>=level);
+    if(!participants.length){prev=level;continue;}
+    const potShare=layer*participants.length;
+
+    // Only unfolded players can win this portion
+    const eligible=participants.filter(p=>p.status!=='folded');
+    if(!eligible.length){prev=level;continue;}
+
+    let bestScore=-Infinity;
+    eligible.forEach(p=>{if(p.handResult&&p.handResult.score>bestScore)bestScore=p.handResult.score;});
+    const winners=eligible.filter(p=>p.handResult&&p.handResult.score===bestScore);
+    const winShare=Math.floor(potShare/winners.length);
+    const remainder=potShare%winners.length;
+
+    winners.forEach((w,i)=>{
+      payouts[w.id]=(payouts[w.id]||0)+winShare+(i===0?remainder:0);
+    });
+    prev=level;
+  }
+
+  Object.entries(payouts).forEach(([pid,amt])=>{
+    const pl=G.players.find(p=>p.id===pid);
+    if(pl){pl.chips+=amt;pl.status='winner';}
+  });
+
+  const winnerNames=Object.entries(payouts).map(([pid,amt])=>{
+    const pl=G.players.find(p=>p.id===pid); return pl?`${pl.name} (+${amt})`:'?';
+  });
+
+  addLog(`🏆 <span class="lw">${winnerNames.join(' & ')}</span> wins showdown`);
+
   G.players.forEach(p=>{
     if(p.chips<=0&&p.status!=='winner'){
       p.status='bankrupt';
       p.role='spectator';
     }
   });
+
   checkForGameOver();
   broadcastState();
   setTimeout(()=>document.querySelectorAll('.seat.winner .s-chips,.me-seat.winner .s-chips').forEach(e=>{e.classList.add('cw');setTimeout(()=>e.classList.remove('cw'),2000);}),500);
@@ -1145,7 +1214,15 @@ function serialise(){return JSON.parse(JSON.stringify(G));}
 function sanitise(state,pid){
   const s=JSON.parse(JSON.stringify(state));
   const me=s.players.find(p=>p.id===pid);
-  const canSeeAll = me && ((me.role==='dealer'&&s.settings.dealerType==='non-playing') || me.status==='bankrupt' || me.role==='spectator');
+  const allInTab = s.players.filter(p=>p.status!=='folded'&&p.status!=='bankrupt');
+  const allInExposed = allInTab.length>0 && allInTab.every(p=>p.status==='allin');
+  const canSeeAll = me && (
+    (me.role==='dealer'&&s.settings.dealerType==='non-playing') ||
+    me.status==='bankrupt' ||
+    me.role==='spectator' ||
+    allInExposed
+  );
+
   if(!canSeeAll){
     s.players.forEach(p=>{
       if(p.id!==pid&&s.phase!=='showdown'){
@@ -1180,6 +1257,25 @@ function applyState(state){
   }
 }
 
+function potBreakdown(state){
+  const bets=state.players.map(p=>p.totalBet||0).filter(v=>v>0).sort((a,b)=>a-b);
+  const tiers=[...new Set(bets)];
+  let prev=0;
+  const pots=[];
+  for(const level of tiers){
+    const layer=level-prev;
+    const participants=state.players.filter(p=>p.totalBet>=level);
+    if(!participants.length){prev=level;continue;}
+    const amount=layer*participants.length;
+    pots.push({label:prev===0?'Main Pot':`Side Pot ${pots.length}`,amount,participants});
+    prev=level;
+  }
+  return pots;
+}
+
+// ════════════════════════════════════════════════
+//  RENDER
+// ════════════════════════════════════════════════
 // ════════════════════════════════════════════════
 //  RENDER
 // ════════════════════════════════════════════════
@@ -1203,6 +1299,16 @@ function renderGame(){
   $('potv').textContent=LG.pot;
   if(String(LG.pot)!==prev)animPot();
   renderPotChips(LG.pot);
+
+  const pots=potBreakdown(LG);
+  const sideEl=$('sidepots');
+  if(sideEl){
+    if(pots.length<=1){
+      sideEl.innerHTML='';
+    } else {
+      sideEl.innerHTML=pots.slice(1).map((p,i)=>`<div class="pt">${p.label}: ${p.amount}</div>`).join('');
+    }
+  }
 
   renderComm(LG);
   const sb=ap[LG.sbIdx],bb=ap[LG.bbIdx];
