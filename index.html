@@ -804,7 +804,7 @@ function requestNewGame(){
 function handleNewGameRequest(by){
   if(!amHost) return;
   if(!G.pendingNewGame){
-    G.pendingNewGame={active:true,by,approvals:[by],okRequired:G.players.filter(p=>p.status!=='bankrupt').map(p=>p.id)};
+    G.pendingNewGame={active:true,by,approvals:[by],okRequired:G.players.map(p=>p.id)};
   }
   broadcastState();
 }
@@ -1212,7 +1212,17 @@ function doShowdown(){
 
     // Only unfolded players can win this portion
     const eligible=participants.filter(p=>p.status!=='folded');
-    if(!eligible.length){prev=level;continue;}
+    if(!eligible.length){
+      // Everyone folded at this level — return to contributors
+      participants.forEach(p=>{payouts[p.id]=(payouts[p.id]||0)+layer;});
+      prev=level;continue;
+    }
+
+    // If only one player contributed at this tier (unmatched all-in excess), return it
+    if(participants.length===1){
+      payouts[participants[0].id]=(payouts[participants[0].id]||0)+layer;
+      prev=level;continue;
+    }
 
     let bestScore=-Infinity;
     eligible.forEach(p=>{if(p.handResult&&p.handResult.score>bestScore)bestScore=p.handResult.score;});
@@ -1366,7 +1376,8 @@ function renderGame(){
   $('blinds').innerHTML=`${sb?`<span class="bp bpsb">SB·${sb.name}·${LG.settings.sb}</span>`:''}${bb?`<span class="bp bpbb">BB·${bb.name}·${LG.settings.bb}</span>`:''}`;
 
   renderSeats(LG,ap,cur,me);
-  if(isDV){show('dv');renderDV(LG);}else hide('dv');
+  const isSpectator=me&&(me.status==='bankrupt'||me.role==='spectator');
+  if(isDV||isSpectator){show('dv');renderDV(LG);}else hide('dv');
   const pending=LG.pendingNewGame&&LG.pendingNewGame.active;
   if(pending){
     show('sdov');renderShowdown(LG,ap);
@@ -1374,7 +1385,7 @@ function renderGame(){
     const approved=LG.pendingNewGame.approvals||[];
     const need=LG.pendingNewGame.okRequired||[];
     const info=`<div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--mut)">New game requested by <strong>${reqBy?.name||'Host'}</strong>. (${approved.length}/${need.length} OK)</div>`;
-    if(!amHost&&me&&me.status!=='bankrupt'&&!approved.includes(myId)){
+    if(!amHost&&me&&!approved.includes(myId)){
       $('abtns').innerHTML=`${info}<button class="ab ab-rdy" onclick="approveNewGame()">OK, Start New Game</button>`;
     } else if(amHost){
       $('abtns').innerHTML=`${info}<div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--grn)">Waiting for players to approve...</div>`;
@@ -1498,7 +1509,7 @@ function renderMeStrip(G2,ap,cur,me,numDeal){
 
   let cardsHtml='';
   let handStr='';
-  if(me.role!=='dealer'||G2.settings.dealerType==='playing'){
+  if(me.role!=='dealer'||G2.settings.dealerType==='playing'||me.status==='bankrupt'||me.role==='spectator'){
     const myCards=(me.cards||[]).filter(c=>c&&!c.hidden);
     cardsHtml=(me.cards||[]).map((c,ci)=>{
       const el=mkCard(c,false);
