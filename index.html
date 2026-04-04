@@ -223,6 +223,7 @@ body{background:var(--bg);color:var(--txt)}
 .bd-bt{background:rgba(232,184,75,.08);border-color:rgba(232,184,75,.3);color:var(--gold)}
 .bd-wi{background:rgba(232,184,75,.15);border-color:var(--gold);color:var(--gold2)}
 .bd-rdy{background:rgba(0,200,83,.12);border-color:rgba(0,200,83,.5);color:var(--grn)}
+.bd-sp{background:rgba(171,71,188,.1);border-color:rgba(171,71,188,.4);color:var(--pur)}
 .s-cards{display:flex;gap:3px;justify-content:center;margin-top:2px}
 .s-bet{font-size:.54rem;color:var(--gold);text-align:center;margin-top:1px;min-height:10px}
 
@@ -286,7 +287,7 @@ body{background:var(--bg);color:var(--txt)}
 .le:last-child{color:rgba(200,200,200,.75)}
 .lw{color:var(--gold)}
 
-/* DEALER VIEW */
+/* SPECTATOR / DEALER VIEW */
 .dv{flex-shrink:0;background:rgba(0,0,0,.55);border-top:1px solid rgba(232,184,75,.18);
   padding:5px 10px}
 .dv-t{font-family:'Cinzel',serif;font-size:.54rem;letter-spacing:.18em;text-transform:uppercase;
@@ -341,7 +342,7 @@ body{background:var(--bg);color:var(--txt)}
 .bn1{font-size:clamp(1.1rem,3.5vw,1.9rem);color:var(--gold2);letter-spacing:.1em;text-shadow:0 0 30px rgba(232,184,75,.6)}
 .bn2{font-family:'Cinzel',serif;font-size:clamp(.6rem,1.8vw,.8rem);color:var(--gold);opacity:.8;margin-top:5px;letter-spacing:.12em}
 
-/* ACTION BANNER — smaller, for player actions */
+/* ACTION BANNER */
 .act-bnov{position:fixed;top:48px;left:50%;transform:translateX(-50%);z-index:400;
   pointer-events:none;display:flex;align-items:center;justify-content:center}
 .act-bnbx{font-family:'Cinzel',serif;text-align:center;padding:8px 28px;
@@ -468,7 +469,7 @@ body{background:var(--bg);color:var(--txt)}
   <div class="me-strip" id="meStrip"></div>
 
   <div class="dv hidden" id="dv">
-    <div class="dv-t">👁 Dealer — All Hands</div>
+    <div class="dv-t" id="dvTitle">👁 Dealer — All Hands</div>
     <div class="dv-g" id="dvg"></div>
   </div>
 
@@ -516,12 +517,8 @@ function applyInviteMode(){
   const panel=lobby.querySelector('.panel');
   if(panel && !document.getElementById('joinModeHint')){
     const hint=document.createElement('div');
-    hint.id='joinModeHint';
-    hint.style.margin='10px 0 8px';
-    hint.style.color='var(--gold)';
-    hint.style.fontFamily="'Cinzel',serif";
-    hint.style.fontSize='0.75rem';
-    hint.style.textAlign='center';
+    hint.id='joinModeHint';hint.style.margin='10px 0 8px';hint.style.color='var(--gold)';
+    hint.style.fontFamily="'Cinzel',serif";hint.style.fontSize='0.75rem';hint.style.textAlign='center';
     hint.textContent='Invite link detected: fill your name and hit Join.';
     panel.insertBefore(hint,panel.querySelector('.fsec'));
   }
@@ -531,7 +528,6 @@ function applyInviteMode(){
   if(joinName) joinName.focus();
   history.replaceState(null,'',location.pathname);
 }
-
 document.addEventListener('DOMContentLoaded',applyInviteMode);
 
 function animPot(){
@@ -547,14 +543,12 @@ function renderPotChips(pot){
   ds.forEach(d=>{const n=Math.floor(rem/d.v);rem%=d.v;for(let i=0;i<Math.min(n,4);i++){const c=document.createElement('div');c.className=`cht ${d.c}`;c.textContent=d.l;r.appendChild(c);}});
 }
 
-// Full-screen banner (phase transitions, round start)
 function showBanner(l1,l2,dur){
   document.querySelectorAll('.bnov').forEach(e=>e.remove());
   const ms=(dur||2400)+200;
   const ov=document.createElement('div');ov.className='bnov';
   ov.style.cssText=`animation:bnFade2 ${ms}ms forwards`;
   ov.innerHTML=`<div class="bnbx"><div class="bn1">${l1}</div>${l2?`<div class="bn2">${l2}</div>`:''}</div>`;
-  // inject keyframe if not already present
   if(!document.getElementById('bnst')){
     const s=document.createElement('style');s.id='bnst';
     s.textContent=`@keyframes bnFade2{0%{opacity:0}8%{opacity:1}75%{opacity:1}100%{opacity:0}}`;
@@ -564,15 +558,14 @@ function showBanner(l1,l2,dur){
   setTimeout(()=>ov.remove(),ms+100);
 }
 
-// Smaller action banner (fold / check / raise / call)
 function showActionBanner(name,action,sub,color){
   document.querySelectorAll('.act-bnov').forEach(e=>e.remove());
   const colors={fold:'#ff5555',check:'#00c853',call:'#448aff',raise:'#e8b84b',bet:'#e8b84b',allin:'#ff4444'};
   const cl=colors[action]||'#ddd5c8';
   const dur=2000;
-  let actionText = action.toUpperCase();
-  if(action === 'raise') actionText = 'RAISED';
-  const bannerText = sub ? `${name}, ${actionText} : <strong>${sub}</strong>` : `${name}, ${actionText}`;
+  let actionText=action.toUpperCase();
+  if(action==='raise')actionText='RAISED';
+  const bannerText=sub?`${name}, ${actionText} : <strong>${sub}</strong>`:`${name}, ${actionText}`;
   const ov=document.createElement('div');ov.className='act-bnov';
   ov.style.cssText=`animation:bnFade ${dur}ms forwards`;
   ov.innerHTML=`<div class="act-bnbx"><div class="act-bn1" style="color:${cl}">${bannerText}</div></div>`;
@@ -659,7 +652,6 @@ function initPeer(){
         {urls:'stun:stun2.l.google.com:19302'},
         {urls:'stun:stun3.l.google.com:19302'},
         {urls:'stun:stun4.l.google.com:19302'},
-        // Free TURN from Open Relay Project — no credentials needed
         {urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
         {urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},
         {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'},
@@ -672,13 +664,9 @@ function initPeer(){
       p.on('error',e=>{
         if(!done){
           attempts++;
-          if(attempts<3){
-            showToast('Retrying connection… ('+attempts+'/3)');
-            setTimeout(tryConnect,2000);
-          }else{done=true;rej(e);}
-        }else{
-          showToast('Net: '+e.type);
-        }
+          if(attempts<3){showToast('Retrying connection… ('+attempts+'/3)');setTimeout(tryConnect,2000);}
+          else{done=true;rej(e);}
+        }else{showToast('Net: '+e.type);}
       });
     }
     tryConnect();
@@ -694,9 +682,7 @@ let G={
   phase:'preflop',round:1,dealerIdx:0,sbIdx:0,bbIdx:0,
   settings:{chips:500,sb:10,bb:20,dealerType:'non-playing'},
   actionsSinceLastRaise:0,animPhase:'',
-  pendingBanners:[],
-  pendingActionBanner:null,
-  readySet:[]        // player ids who clicked "Ready" after showdown
+  pendingBanners:[],pendingActionBanner:null,readySet:[]
 };
 let LG=null;
 
@@ -773,37 +759,36 @@ function onHost(conn,d){
 function onGuest(d){
   if(d.type==='FULL'){showToast('Game is full');return;}
   if(d.type==='LOBBY'){G.players=d.players;G.settings=d.settings;refreshWait();}
-  if(d.type==='START'){
-    launchGame();
-    setTimeout(()=>applyState(d.state),100);
-  }
+  if(d.type==='START'){launchGame();setTimeout(()=>applyState(d.state),100);}
   if(d.type==='STATE'){applyState(d.state);}
 }
 
 function refreshWait(){
   $('waitList').innerHTML=G.players.map(p=>`<div class="ppill"><span class="dot"></span><span>${p.name}</span><span class="rt">${p.id===myId?'You · ':''}${p.role==='dealer'?'Dealer':'Player'}</span></div>`).join('');
   const playable=G.players.filter(p=>p.status!=='bankrupt'&&(p.role!=='dealer'||G.settings.dealerType==='playing'));
-  const ok=playable.length>=2; 
+  const ok=playable.length>=2;
   $('startBtn').disabled=!ok;
   $('startBtn').textContent=ok?`▶ Start Game (${G.players.length})`:`Need at least 2 players`;
 }
 
+// ── NEW GAME REQUEST / APPROVAL ──────────────────
 function requestNewGame(){
   if(!amHost){showToast('Only host can request new game');return;}
-  // Include ALL players (even bankrupted spectators) — new game restores everyone
+  // Include ALL players — even bankrupt ones get to vote and rejoin
   const allIds=G.players.map(p=>p.id);
   G.pendingNewGame={
     active:true,by:myId,
     approvals:[myId], // host auto-approves
     okRequired:allIds
   };
-  addLog(`<span class="lw">Host</span> requested a new game — all players must click Ready`);
+  addLog(`<span class="lw">Host</span> requested a new game — all players must approve`);
   broadcastState();
 }
 
 function handleNewGameRequest(by){
-  if(!amHost) return;
+  if(!amHost)return;
   if(!G.pendingNewGame){
+    // Include ALL players in okRequired — bankrupt players can participate in new game
     G.pendingNewGame={active:true,by,approvals:[by],okRequired:G.players.map(p=>p.id)};
   }
   broadcastState();
@@ -812,9 +797,9 @@ function handleNewGameRequest(by){
 function handleNewGameApproval(pid){
   if(!amHost||!G.pendingNewGame||!G.pendingNewGame.active)return;
   if(!G.pendingNewGame.approvals.includes(pid))G.pendingNewGame.approvals.push(pid);
-  broadcastState(); // show updated approval count to everyone
+  broadcastState();
   const allOk=G.pendingNewGame.okRequired.every(id=>G.pendingNewGame.approvals.includes(id));
-  if(allOk) startNewGame();
+  if(allOk)startNewGame();
 }
 
 function startNewGame(){
@@ -825,9 +810,9 @@ function startNewGame(){
   G.currentBet=G.settings.bb;G.minRaise=G.settings.bb;
   G.actionsSinceLastRaise=0;G.animPhase='';G.pendingBanners=[];
 
-  // Restore ALL players (including bankrupted spectators) with fresh chips
+  // ── Restore ALL players with fresh chips (including bankrupt/spectators)
   G.players.forEach(p=>{
-    p.chips=G.settings.chips; // reset to starting chips
+    p.chips=G.settings.chips;
     p.status='active';
     p.bet=0;p.totalBet=0;p.lastAction='';p.cards=[];
     // Restore spectators back to players
@@ -845,10 +830,9 @@ function startNewGame(){
 function approveNewGame(){
   if(amHost)return;
   if(!hostConn){showToast('Not connected to host');return;}
-  try{hostConn.send({type:'NEWGAME_APPROVAL',pid:myId});showToast('New game approval submitted');}
+  try{hostConn.send({type:'NEWGAME_APPROVAL',pid:myId});showToast('Approval sent!');}
   catch(e){showToast('Connection lost');}
 }
-
 
 // ════════════════════════════════════════════════
 //  GAME LOGIC
@@ -873,12 +857,10 @@ function launchGame(){
   hide('waitScreen');hide('lobbyScreen');show('gameScreen');
 }
 
-// ── activePlayers: players who participate in a hand (not bankrupt, not non-playing dealer)
 function activePlayers(){
-  return G.players.filter(p=>(p.role!=='dealer'||G.settings.dealerType==='playing')&&p.status!=='bankrupt');
+  return G.players.filter(p=>(p.role!=='dealer'||G.settings.dealerType==='playing')&&p.status!=='bankrupt'&&p.status!=='spectator');
 }
 
-// ── shouldSkipTurn: skip someone who already folded or is all-in or is non-playing dealer
 function shouldSkipTurn(p){
   if(!p)return true;
   if(p.role==='dealer'&&G.settings.dealerType==='non-playing')return true;
@@ -893,7 +875,6 @@ function qBanner(l1,l2,dur,delay){
 function dealRound(fresh){
   if(fresh){G.round=1;G.dealerIdx=0;}
   else{
-    // advance dealer among active non-bust players
     const prev=activePlayers();
     G.dealerIdx=(G.dealerIdx+1)%Math.max(prev.length,1);
     G.round++;
@@ -908,12 +889,13 @@ function dealRound(fresh){
 
   G.players.forEach(p=>{
     p.cards=[];p.bet=0;p.totalBet=0;p.lastAction='';
-    if(p.status!=='bankrupt')p.status='active';
+    // Only reset non-bankrupt, non-spectator players to active
+    if(p.status!=='bankrupt'&&p.status!=='spectator')p.status='active';
     p._di=0;
   });
 
   const dealP=(G.settings.dealerType==='playing'?G.players:G.players.filter(p=>p.role!=='dealer'))
-    .filter(p=>p.status!=='bankrupt');
+    .filter(p=>p.status!=='bankrupt'&&p.status!=='spectator');
   dealP.forEach((p,i)=>{p.cards=[null,null];p._di=i;});
   dealP.forEach(p=>p.cards[0]=G.deck.pop());
   dealP.forEach(p=>p.cards[1]=G.deck.pop());
@@ -922,7 +904,6 @@ function dealRound(fresh){
   if(sb){const a=Math.min(G.settings.sb,sb.chips);sb.chips-=a;sb.bet=a;sb.totalBet=a;G.pot+=a;}
   if(bb){const a=Math.min(G.settings.bb,bb.chips);bb.chips-=a;bb.bet=a;bb.totalBet=a;G.pot+=a;}
 
-  // First to act preflop: UTG (player after BB)
   let startIdx=(G.bbIdx+1)%n;
   let tries=0;
   while(shouldSkipTurn(ap[startIdx])&&tries<n){startIdx=(startIdx+1)%n;tries++;}
@@ -935,21 +916,27 @@ function dealRound(fresh){
   scheduleIdleFold();
 }
 
-// ── READY SYSTEM ─────────────────────────────
+// ── READY SYSTEM ──────────────────────────────
+// ▼▼▼ FIX 1 ROOT CAUSE: We never remove bankrupt players from G.players ▼▼▼
 function handleReady(pid){
   if(!amHost)return;
   if(!G.readySet)G.readySet=[];
   if(!G.readySet.includes(pid))G.readySet.push(pid);
 
-  // Check if everyone who can play next round is ready
-  const eligible=G.players.filter(p=>p.chips>0||(p.role==='dealer'&&G.settings.dealerType==='non-playing'));
-  const allReady=eligible.every(p=>G.readySet.includes(p.id));
+  // Only wait for players who actually have chips to play
+  const eligible=G.players.filter(p=>
+    p.chips>0&&(p.role!=='dealer'||G.settings.dealerType==='playing')
+  );
+  // Also include non-playing dealer who always participates
+  const dealerEligible=G.players.filter(p=>p.role==='dealer'&&G.settings.dealerType==='non-playing');
+  const allEligible=[...eligible,...dealerEligible];
+  const allReady=allEligible.every(p=>G.readySet.includes(p.id));
 
-  broadcastState(); // update UI showing who is ready
+  broadcastState();
 
   if(allReady){
-    // Start next round
-    G.players=G.players.filter(p=>p.chips>0||(p.role==='dealer'&&G.settings.dealerType==='non-playing'));
+    // ── DO NOT filter G.players — bankrupt players stay in the array as spectators
+    // They will watch the game. Only remove disconnected players (handled by conn.close).
     if(activePlayers().length<2){
       broadcastState();
       return;
@@ -971,7 +958,6 @@ function handleAction(d){
   const ap=activePlayers(),p=ap[G.turnIdx];
   if(!p||p.id!==d.pid)return;
   const{act,amt}=d;
-  let actionBannerSub='';
 
   if(act==='fold'){
     p.status='folded';p.lastAction='fold';
@@ -1000,7 +986,7 @@ function handleAction(d){
     if(nt>G.currentBet){G.minRaise=nt-G.currentBet;G.currentBet=nt;G.actionsSinceLastRaise=0;}
     if(p.chips===0)p.status='allin';
     p.lastAction=G.currentBet>G.settings.bb?'raise':'bet';
-    const lbl=p.lastAction==='raise'?'raised to <strong>100</strong>':'bet <strong>50</strong>';
+    const lbl=p.lastAction==='raise'?`raised to <strong>${nt}</strong>`:`bet <strong>${total}</strong>`;
     addLog(`<span class="lw">${p.name}</span> ${lbl}`);
     G.pendingActionBanner={name:p.name,action:p.lastAction,sub:`${nt}`,color:'#e8b84b'};
   }
@@ -1022,32 +1008,25 @@ function nextTurn(){
   if(G.phase==='showdown'||G.phase==='ended')return;
   const ap=activePlayers();
   const n=ap.length;
-
-  // Count players still able to act
   const stillActive=ap.filter(p=>p.status==='active');
   const stillAllin=ap.filter(p=>p.status==='allin');
   const notFolded=ap.filter(p=>p.status!=='folded');
 
-  // ── Only one player hasn't folded → they win immediately (no showdown needed)
   if(notFolded.length===1){
     const w=notFolded[0];
-    w.chips+=G.pot;
-    w.status='winner';
+    w.chips+=G.pot;w.status='winner';
     addLog(`🏆 <span class="lw">${w.name}</span> wins ${G.pot} — all others folded!`);
     G.phase='showdown';
     broadcastState();
     return;
   }
 
-  // ── Everyone left is all-in (or folded) → run board to showdown with full progression
   if(stillActive.length===0&&stillAllin.length>=1){
     broadcastState();
     setTimeout(()=>runAllInShowdown(),500);
     return;
   }
 
-  // ── Check if betting round is over
-  // All active players have matched the current bet AND had at least one action
   const bettingDone=stillActive.every(p=>p.bet>=G.currentBet&&p.lastAction!=='');
   if(bettingDone){
     broadcastState();
@@ -1055,14 +1034,12 @@ function nextTurn(){
     return;
   }
 
-  // Advance turn index
   let next=(G.turnIdx+1)%n,tries=0;
   while(tries<n){
     if(!shouldSkipTurn(ap[next]))break;
     next=(next+1)%n;tries++;
   }
   if(tries>=n){
-    // No one left to act
     broadcastState();
     setTimeout(()=>nextPhase(),800);
     return;
@@ -1104,28 +1081,23 @@ function nextPhase(){
 
   if(idx>=PH.length-2){
     qBanner('♦ Showdown ♦','Best hand wins!',2200,0);
-    broadcastState();
-    G.pendingBanners=[];
+    broadcastState();G.pendingBanners=[];
     setTimeout(()=>doShowdown(),2800);
     return;
   }
 
   G.phase=PH[idx+1];
-  // Reset bets & actions for new street
   G.players.forEach(p=>{p.bet=0;p.lastAction='';});
   G.currentBet=0;G.minRaise=G.settings.bb;G.actionsSinceLastRaise=0;G.animPhase=G.phase;
 
   const lbl={flop:'♥ The Flop ♥',turn:'♦ The Turn ♦',river:'♣ The River ♣'};
   qBanner(lbl[G.phase]||G.phase,'',2000,0);
-  broadcastState();
-  G.pendingBanners=[];
+  broadcastState();G.pendingBanners=[];
 
-  // Deal community cards after banner delay
   setTimeout(()=>{
     if(G.phase==='flop'){G.community=[G.deck.pop(),G.deck.pop(),G.deck.pop()];addLog(`🃏 <span class="lw">Flop</span> dealt`);}
     else if(G.phase==='turn'){G.community.push(G.deck.pop());addLog(`🃏 <span class="lw">Turn</span> dealt`);}
     else if(G.phase==='river'){G.community.push(G.deck.pop());addLog(`🃏 <span class="lw">River</span> dealt`);}
-    // First to act post-flop: first active player left of dealer
     const ap=activePlayers(),n=ap.length;
     let s=(G.dealerIdx+1)%n,t=0;
     while(shouldSkipTurn(ap[s])&&t<n){s=(s+1)%n;t++;}
@@ -1134,63 +1106,36 @@ function nextPhase(){
   },2600);
 }
 
-function runToShowdown(){
-  // Fill out the board (instant fallback)
-  if(G.phase==='preflop'){
-    G.community=[G.deck.pop(),G.deck.pop(),G.deck.pop(),G.deck.pop(),G.deck.pop()];
-  }else if(G.phase==='flop'){
-    G.community.push(G.deck.pop(),G.deck.pop());
-  }else if(G.phase==='turn'){
-    G.community.push(G.deck.pop());
-  }
-  G.phase='showdown';
-  broadcastState();
-  doShowdown();
-}
-
 function runAllInShowdown(){
-  // Each street: show banner (2s) → wait 0.5s → deal cards → wait 2s → next street
-  const STREET_DELAY=2600; // banner(2s) + gap(0.6s)
-
-  // Determine which streets still need to be dealt
+  const STREET_DELAY=2600;
   const streets=[];
   if(G.phase==='preflop'){streets.push('flop','turn','river');}
   else if(G.phase==='flop'){streets.push('turn','river');}
   else if(G.phase==='turn'){streets.push('river');}
-  // river already dealt → go straight to showdown
-
   const labels={flop:'♥ The Flop ♥',turn:'♦ The Turn ♦',river:'♣ The River ♣'};
 
   function dealStreet(i){
     if(i>=streets.length){
-      // All streets done — show showdown banner then evaluate
       G.pendingBanners=[];
       qBanner('♦ Showdown ♦','Best hand wins!',2200,0);
-      broadcastState();
-      G.pendingBanners=[];
+      broadcastState();G.pendingBanners=[];
       setTimeout(()=>doShowdown(),2800);
       return;
     }
     const street=streets[i];
-    G.phase=street;
-    G.animPhase=street;
-    G.pendingBanners=[];
-
-    if(street==='flop') G.community=[G.deck.pop(),G.deck.pop(),G.deck.pop()];
-    else if(street==='turn') G.community.push(G.deck.pop());
-    else if(street==='river') G.community.push(G.deck.pop());
-
+    G.phase=street;G.animPhase=street;G.pendingBanners=[];
+    if(street==='flop')G.community=[G.deck.pop(),G.deck.pop(),G.deck.pop()];
+    else if(street==='turn')G.community.push(G.deck.pop());
+    else if(street==='river')G.community.push(G.deck.pop());
     qBanner(labels[street],'All-In — Cards are dealt!',2000,0);
     addLog(`🃏 <span class="lw">${street.charAt(0).toUpperCase()+street.slice(1)}</span> dealt`);
-    broadcastState();
-    G.pendingBanners=[];
-
-    setTimeout(()=>dealStreet(i+1), STREET_DELAY);
+    broadcastState();G.pendingBanners=[];
+    setTimeout(()=>dealStreet(i+1),STREET_DELAY);
   }
-
   dealStreet(0);
 }
 
+// ▼▼▼ FIX 2: Sidepot refund for unmatched all-in bets ▼▼▼
 function doShowdown(){
   G.phase='showdown';
   G.readySet=[];
@@ -1198,7 +1143,6 @@ function doShowdown(){
   const el=ap.filter(p=>p.status!=='folded');
   el.forEach(p=>{p.handResult=evalHand(p.cards||[],G.community);});
 
-  // Build sidepot distribution from total bets (sets who can win each portion)
   const contributing=G.players.filter(p=>p.totalBet>0);
   const tiers=[...new Set(contributing.map(p=>p.totalBet))].sort((a,b)=>a-b);
   let prev=0;
@@ -1208,19 +1152,22 @@ function doShowdown(){
     const layer=level-prev;
     const participants=G.players.filter(p=>p.totalBet>=level);
     if(!participants.length){prev=level;continue;}
-    const potShare=layer*participants.length;
 
-    // Only unfolded players can win this portion
-    const eligible=participants.filter(p=>p.status!=='folded');
-    if(!eligible.length){
-      // Everyone folded at this level — return to contributors
-      participants.forEach(p=>{payouts[p.id]=(payouts[p.id]||0)+layer;});
+    // ── If only one player bet at this tier (their all-in was unmatched)
+    // → return those chips directly to them, no contest
+    if(participants.length===1){
+      const retPlayer=participants[0];
+      payouts[retPlayer.id]=(payouts[retPlayer.id]||0)+layer;
+      addLog(`↩ <span class="lw">${retPlayer.name}</span> gets back unmatched ${layer} chips`);
       prev=level;continue;
     }
 
-    // If only one player contributed at this tier (unmatched all-in excess), return it
-    if(participants.length===1){
-      payouts[participants[0].id]=(payouts[participants[0].id]||0)+layer;
+    const potShare=layer*participants.length;
+    const eligible=participants.filter(p=>p.status!=='folded');
+
+    if(!eligible.length){
+      // All folded at this level — split among contributors
+      participants.forEach(p=>{payouts[p.id]=(payouts[p.id]||0)+layer;});
       prev=level;continue;
     }
 
@@ -1229,7 +1176,6 @@ function doShowdown(){
     const winners=eligible.filter(p=>p.handResult&&p.handResult.score===bestScore);
     const winShare=Math.floor(potShare/winners.length);
     const remainder=potShare%winners.length;
-
     winners.forEach((w,i)=>{
       payouts[w.id]=(payouts[w.id]||0)+winShare+(i===0?remainder:0);
     });
@@ -1242,15 +1188,15 @@ function doShowdown(){
   });
 
   const winnerNames=Object.entries(payouts).map(([pid,amt])=>{
-    const pl=G.players.find(p=>p.id===pid); return pl?`${pl.name} (+${amt})`:'?';
+    const pl=G.players.find(p=>p.id===pid);return pl?`${pl.name} (+${amt})`:'?';
   });
-
   addLog(`🏆 <span class="lw">${winnerNames.join(' & ')}</span> wins showdown`);
 
+  // ── FIX 1: Mark bankrupt players as spectators but KEEP them in G.players
   G.players.forEach(p=>{
     if(p.chips<=0&&p.status!=='winner'){
       p.status='bankrupt';
-      p.role='spectator';
+      p.role='spectator'; // spectator role grants full card visibility
     }
   });
 
@@ -1259,12 +1205,21 @@ function doShowdown(){
   setTimeout(()=>document.querySelectorAll('.seat.winner .s-chips,.me-seat.winner .s-chips').forEach(e=>{e.classList.add('cw');setTimeout(()=>e.classList.remove('cw'),2000);}),500);
 }
 
+// ▼▼▼ FIX 3: checkForGameOver — host auto-approves so they can start the new game ▼▼▼
 function checkForGameOver(){
-  const alive=G.players.filter(p=>p.chips>0 && p.status!=='bankrupt');
-  if(alive.length===1){
+  const alive=G.players.filter(p=>p.chips>0&&p.status!=='bankrupt'&&p.status!=='spectator');
+  if(alive.length<=1){
     G.phase='ended';
-    G.pendingNewGame={active:true,by:alive[0].id,approvals:[],msg:'Only one active player left; start new game?'};
-    addLog(`⚠️ <span class="lw">${alive[0].name}</span> is the last active player. Requesting restart.`);
+    // Host auto-included in approvals so they can trigger via their own button
+    const hostApproval=amHost?[myId]:[];
+    G.pendingNewGame={
+      active:true,
+      by:myId,
+      approvals:hostApproval,
+      okRequired:G.players.map(p=>p.id) // ALL players must approve, including bankrupt
+    };
+    const winnerName=alive[0]?.name||'Nobody';
+    addLog(`🏆 <span class="lw">${winnerName}</span> wins the game! Click ★ to start new game.`);
   }
 }
 
@@ -1273,11 +1228,13 @@ function checkForGameOver(){
 // ════════════════════════════════════════════════
 function serialise(){return JSON.parse(JSON.stringify(G));}
 
+// ▼▼▼ FIX 1: sanitise — spectators/bankrupt always get canSeeAll=true ▼▼▼
 function sanitise(state,pid){
   const s=JSON.parse(JSON.stringify(state));
   const me=s.players.find(p=>p.id===pid);
-  const allInTab=s.players.filter(p=>p.status!=='folded'&&p.status!=='bankrupt');
+  const allInTab=s.players.filter(p=>p.status!=='folded'&&p.status!=='bankrupt'&&p.status!=='spectator');
   const allInExposed=allInTab.length>0&&allInTab.every(p=>p.status==='allin');
+  // Spectators (bankrupt players) always see all cards — they're watching the game
   const isSpectator=me&&(me.status==='bankrupt'||me.role==='spectator');
   const isDealerView=me&&me.role==='dealer'&&s.settings.dealerType==='non-playing';
   const canSeeAll=isDealerView||isSpectator||allInExposed;
@@ -1289,8 +1246,6 @@ function sanitise(state,pid){
       }
     });
   }
-  // Spectators always see community cards (already public) + hole cards of all-in players
-  // All community cards are never hidden — they're always plain objects in G.community
   return s;
 }
 
@@ -1305,12 +1260,10 @@ function broadcastState(){
 function applyState(state){
   LG=state;
   renderGame();
-  // Fire banners
   if(state.pendingBanners&&state.pendingBanners.length){
     state.pendingBanners.forEach(b=>setTimeout(()=>showBanner(b.l1,b.l2,b.dur),b.delay||0));
     if(amHost)G.pendingBanners=[];
   }
-  // Fire action banner (smaller, shows player action)
   if(state.pendingActionBanner){
     const b=state.pendingActionBanner;
     showActionBanner(b.name,b.action,b.sub,b.color);
@@ -1327,8 +1280,9 @@ function potBreakdown(state){
     const layer=level-prev;
     const participants=state.players.filter(p=>p.totalBet>=level);
     if(!participants.length){prev=level;continue;}
+    if(participants.length===1){prev=level;continue;} // unmatched — will be returned
     const amount=layer*participants.length;
-    pots.push({label:prev===0?'Main Pot':`Side Pot ${pots.length}`,amount,participants});
+    pots.push({label:pots.length===0?'Main Pot':`Side Pot ${pots.length}`,amount,participants});
     prev=level;
   }
   return pots;
@@ -1337,23 +1291,22 @@ function potBreakdown(state){
 // ════════════════════════════════════════════════
 //  RENDER
 // ════════════════════════════════════════════════
-// ════════════════════════════════════════════════
-//  RENDER
-// ════════════════════════════════════════════════
 function renderGame(){
   if(!LG)return;
-  const ap=LG.players.filter(p=>(p.role!=='dealer'||LG.settings.dealerType==='playing')&&p.status!=='bankrupt');
+  const ap=LG.players.filter(p=>(p.role!=='dealer'||LG.settings.dealerType==='playing')&&p.status!=='bankrupt'&&p.status!=='spectator');
   const cur=ap[LG.turnIdx];
   const me=LG.players.find(p=>p.id===myId);
   const isMyTurn=cur&&cur.id===myId&&LG.phase!=='showdown'&&LG.phase!=='ended';
   const isDV=me&&me.role==='dealer'&&LG.settings.dealerType==='non-playing';
+  // ▼▼▼ FIX 1: Spectators/bankrupt players get the all-cards panel ▼▼▼
+  const isSpectator=me&&(me.status==='bankrupt'||me.role==='spectator');
 
   $('pbadge').textContent=LG.phase.charAt(0).toUpperCase()+LG.phase.slice(1);
   $('pbadge').className='pb pb-'+LG.phase;
   $('rnl').textContent='Round '+LG.round;
 
   if(isMyTurn){show('tstrip');hide('wstrip');}
-  else if(!isDV&&LG.phase!=='showdown'&&LG.phase!=='ended'){hide('tstrip');show('wstrip');}
+  else if(!isDV&&!isSpectator&&LG.phase!=='showdown'&&LG.phase!=='ended'){hide('tstrip');show('wstrip');}
   else{hide('tstrip');hide('wstrip');}
 
   const prev=$('potv').textContent;
@@ -1364,11 +1317,8 @@ function renderGame(){
   const pots=potBreakdown(LG);
   const sideEl=$('sidepots');
   if(sideEl){
-    if(pots.length<=1){
-      sideEl.innerHTML='';
-    } else {
-      sideEl.innerHTML=pots.slice(1).map((p,i)=>`<div class="pt">${p.label}: ${p.amount}</div>`).join('');
-    }
+    if(pots.length<=1){sideEl.innerHTML='';}
+    else{sideEl.innerHTML=pots.slice(1).map(p=>`<div class="pt">${p.label}: ${p.amount}</div>`).join('');}
   }
 
   renderComm(LG);
@@ -1376,21 +1326,39 @@ function renderGame(){
   $('blinds').innerHTML=`${sb?`<span class="bp bpsb">SB·${sb.name}·${LG.settings.sb}</span>`:''}${bb?`<span class="bp bpbb">BB·${bb.name}·${LG.settings.bb}</span>`:''}`;
 
   renderSeats(LG,ap,cur,me);
-  const isSpectator=me&&(me.status==='bankrupt'||me.role==='spectator');
-  if(isDV||isSpectator){show('dv');renderDV(LG);}else hide('dv');
+
+  // Show the "all cards" panel for non-playing dealer OR spectators
+  if(isDV||isSpectator){
+    show('dv');
+    // Update title depending on who's viewing
+    const dvTitleEl=$('dvTitle');
+    if(dvTitleEl){
+      dvTitleEl.textContent=isSpectator&&!isDV?'👁 Spectating — All Hands':'👁 Dealer — All Hands';
+    }
+    renderDV(LG);
+  }else{
+    hide('dv');
+  }
+
+  // ── Pending new game overlay
   const pending=LG.pendingNewGame&&LG.pendingNewGame.active;
   if(pending){
     show('sdov');renderShowdown(LG,ap);
     const reqBy=LG.players.find(p=>p.id===LG.pendingNewGame.by);
     const approved=LG.pendingNewGame.approvals||[];
     const need=LG.pendingNewGame.okRequired||[];
-    const info=`<div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--mut)">New game requested by <strong>${reqBy?.name||'Host'}</strong>. (${approved.length}/${need.length} OK)</div>`;
-    if(!amHost&&me&&!approved.includes(myId)){
-      $('abtns').innerHTML=`${info}<button class="ab ab-rdy" onclick="approveNewGame()">OK, Start New Game</button>`;
+    const info=`<div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--mut);margin-bottom:8px">New game requested by <strong style="color:var(--gold)">${reqBy?.name||'Host'}</strong>. Approvals: ${approved.length}/${need.length}</div>`;
+
+    if(amHost&&!approved.includes(myId)){
+      // Host hasn't approved yet (auto-approve should have happened, but fallback)
+      $('abtns').innerHTML=`${info}<button class="ab ab-rdy" onclick="handleNewGameApproval('${myId}');broadcastState()">★ Start New Game</button>`;
     } else if(amHost){
-      $('abtns').innerHTML=`${info}<div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--grn)">Waiting for players to approve...</div>`;
+      $('abtns').innerHTML=`${info}<div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--grn)">Waiting for all players to approve…</div>`;
+    } else if(me&&!approved.includes(myId)){
+      // Any guest (including bankrupt) who hasn't approved yet
+      $('abtns').innerHTML=`${info}<button class="ab ab-rdy" onclick="approveNewGame()">✓ OK, Start New Game</button>`;
     } else {
-      $('abtns').innerHTML=info;
+      $('abtns').innerHTML=`${info}<div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--grn)">✓ Approved — waiting for others…</div>`;
     }
     hide('betrow');hide('qbtns');
     return;
@@ -1398,7 +1366,12 @@ function renderGame(){
 
   if(LG.phase==='showdown'||LG.phase==='ended'){
     show('sdov');renderShowdown(LG,ap);
-    renderReadyPanel(LG,me);
+    // Spectators/bankrupt see showdown but get the new-game button instead of ready
+    if(isSpectator){
+      $('abtns').innerHTML=`<div style="font-family:'Cinzel',serif;font-size:.72rem;color:var(--mut)">👁 Spectating — waiting for next round</div>`;
+    } else {
+      renderReadyPanel(LG,me);
+    }
   } else {
     hide('sdov');
     if(isMyTurn&&!isDV)renderActions(LG,me);
@@ -1439,7 +1412,7 @@ function renderSeats(G2,ap,cur,me){
   const mi=all.findIndex(p=>p.id===myId);
   const others=mi>=0?[...all.slice(0,mi),...all.slice(mi+1)]:[...all];
   const otherPos=getOtherPos(others.length);
-  const numDeal=G2.players.filter(p=>(G2.settings.dealerType==='playing'||p.role!=='dealer')&&p.status!=='bankrupt').length;
+  const numDeal=G2.players.filter(p=>(G2.settings.dealerType==='playing'||p.role!=='dealer')&&p.status!=='bankrupt'&&p.status!=='spectator').length;
   const readySet=G2.readySet||[];
 
   others.forEach((p,idx)=>{
@@ -1448,13 +1421,14 @@ function renderSeats(G2,ap,cur,me){
     const apIdx=ap.findIndex(x=>x.id===p.id);
     const isCur=cur&&p.id===cur.id&&G2.phase!=='showdown';
     const isRdy=readySet.includes(p.id);
+    const isSpec=p.status==='bankrupt'||p.role==='spectator';
 
     const div=document.createElement('div');
     let cls='seat';
     if(isCur)cls+=' myturn';
     if(p.status==='folded')cls+=' folded';
     if(p.status==='winner')cls+=' winner';
-    if(p.status==='bankrupt')cls+=' bankrupt';
+    if(isSpec)cls+=' bankrupt';
     div.className=cls;
     div.style.left=ps.l;
     if(ps.t)div.style.top=ps.t;
@@ -1467,7 +1441,8 @@ function renderSeats(G2,ap,cur,me){
     if(apIdx===G2.sbIdx)bdg+=`<span class="bdg bd-sb">SB</span>`;
     if(apIdx===G2.bbIdx)bdg+=`<span class="bdg bd-bb">BB</span>`;
     if(p.role==='dealer'&&G2.settings.dealerType==='non-playing')bdg+=`<span class="bdg bd-d">Dealer</span>`;
-    if(p.status==='folded')bdg+=`<span class="bdg bd-fo">Fold</span>`;
+    if(isSpec)bdg+=`<span class="bdg bd-sp">👁 Spectating</span>`;
+    else if(p.status==='folded')bdg+=`<span class="bdg bd-fo">Fold</span>`;
     if(p.status==='allin')bdg+=`<span class="bdg bd-ai">All In</span>`;
     if(p.lastAction==='check')bdg+=`<span class="bdg bd-ck">Check</span>`;
     if(p.lastAction==='call')bdg+=`<span class="bdg bd-ca">Call</span>`;
@@ -1478,7 +1453,7 @@ function renderSeats(G2,ap,cur,me){
     div.innerHTML=`
       <div class="s-top">
         <div class="s-av">${ini}</div>
-        <div class="s-info"><div class="s-name">${p.name}</div><div class="s-chips">${p.chips.toLocaleString()}</div></div>
+        <div class="s-info"><div class="s-name">${p.name}</div><div class="s-chips">${isSpec?'Spectating':p.chips.toLocaleString()}</div></div>
       </div>
       ${bdg?`<div class="s-bdg">${bdg}</div>`:''}
       ${p.bet>0?`<div class="s-bet">Bet: ${p.bet}</div>`:''}
@@ -1497,19 +1472,21 @@ function renderMeStrip(G2,ap,cur,me,numDeal){
   const apIdx=ap.findIndex(x=>x.id===myId);
   const readySet=G2.readySet||[];
   const isRdy=readySet.includes(myId);
+  const isSpec=me.status==='bankrupt'||me.role==='spectator';
 
   let cls='me-seat';
   if(isMyTurn)cls+=' myturn';
   if(me.status==='folded')cls+=' folded';
   if(me.status==='winner')cls+=' winner';
-  if(me.status==='bankrupt')cls+=' bankrupt';
+  if(isSpec)cls+=' bankrupt';
 
   const ini=(me.name||'?')[0].toUpperCase();
   const pdi=me._di||0;
 
+  // Spectators don't have hole cards — they watch via the DV panel
   let cardsHtml='';
   let handStr='';
-  if(me.role!=='dealer'||G2.settings.dealerType==='playing'||me.status==='bankrupt'||me.role==='spectator'){
+  if(!isSpec&&(me.role!=='dealer'||G2.settings.dealerType==='playing')){
     const myCards=(me.cards||[]).filter(c=>c&&!c.hidden);
     cardsHtml=(me.cards||[]).map((c,ci)=>{
       const el=mkCard(c,false);
@@ -1522,7 +1499,7 @@ function renderMeStrip(G2,ap,cur,me,numDeal){
     if(myCards.length>=2){
       const comm=(G2.community||[]).filter(c=>c&&!c.hidden);
       const hr=evalHand(myCards,comm);
-      if(hr&&hr.name&&hr.name!=='—') handStr=hr.name;
+      if(hr&&hr.name&&hr.name!=='—')handStr=hr.name;
     }
   }
 
@@ -1531,9 +1508,9 @@ function renderMeStrip(G2,ap,cur,me,numDeal){
   if(apIdx===G2.sbIdx)bdg+=`<span class="bdg bd-sb">SB</span>`;
   if(apIdx===G2.bbIdx)bdg+=`<span class="bdg bd-bb">BB</span>`;
   bdg+=`<span class="bdg bd-me">You</span>`;
-  if(me.status==='folded')bdg+=`<span class="bdg bd-fo">Folded</span>`;
+  if(isSpec)bdg+=`<span class="bdg bd-sp">👁 Spectating</span>`;
+  else if(me.status==='folded')bdg+=`<span class="bdg bd-fo">Folded</span>`;
   if(me.status==='allin')bdg+=`<span class="bdg bd-ai">All In</span>`;
-  if(me.status==='bankrupt')bdg+=`<span class="bdg bd-fo">Bankrupt</span>`;
   if(me.lastAction==='check')bdg+=`<span class="bdg bd-ck">Check</span>`;
   if(me.lastAction==='call')bdg+=`<span class="bdg bd-ca">Call</span>`;
   if(me.lastAction==='bet'||me.lastAction==='raise')bdg+=`<span class="bdg bd-bt">${me.lastAction}</span>`;
@@ -1547,11 +1524,11 @@ function renderMeStrip(G2,ap,cur,me,numDeal){
       <div class="s-av">${ini}</div>
       <div class="s-info">
         <div class="s-name">${me.name}</div>
-        <div class="s-chips">${me.chips.toLocaleString()}</div>
+        <div class="s-chips">${isSpec?'Spectating':me.chips.toLocaleString()}</div>
       </div>
     </div>
     <div class="me-center">
-      <div class="me-cards">${cardsHtml||'<span style="font-size:.6rem;color:var(--mut)">—</span>'}</div>
+      <div class="me-cards">${cardsHtml||`<span style="font-size:.6rem;color:var(--mut)">${isSpec?'👁 Watching':'—'}</span>`}</div>
       ${handStr?`<div class="me-hand">${handStr}</div>`:''}
     </div>
     <div class="me-right">
@@ -1571,15 +1548,26 @@ function mkCard(card,small){
   return d;
 }
 
+// ▼▼▼ FIX 1: renderDV shows ALL players for spectators (not just non-dealers) ▼▼▼
 function renderDV(G2){
   const g=$('dvg');g.innerHTML='';
-  G2.players.filter(p=>p.role!=='dealer').forEach(p=>{
+  const me=G2.players.find(p=>p.id===myId);
+  const isSpectator=me&&(me.status==='bankrupt'||me.role==='spectator');
+  const isDealerHost=me&&me.role==='dealer'&&G2.settings.dealerType==='non-playing';
+
+  // Spectators see everyone playing; dealer sees non-dealer players
+  const playersToShow=isSpectator
+    ? G2.players.filter(p=>p.role!=='spectator'||p.id===myId).filter(p=>p.role!=='dealer'||G2.settings.dealerType==='playing')
+    : G2.players.filter(p=>p.role!=='dealer');
+
+  playersToShow.forEach(p=>{
     const d=document.createElement('div');d.className='dv-i';
     const visCards=(p.cards||[]).filter(c=>c&&!c.hidden);
     const ch=(p.cards||[]).map(c=>mkCard(c,true).outerHTML).join('');
     const hr=visCards.length>=2?evalHand(visCards,G2.community):null;
-    const foldedTag=p.status==='folded'?'<span style="font-size:.5rem;color:var(--mut);margin-left:4px">(folded)</span>':'';
-    d.innerHTML=`<div class="dv-n">${p.name}${foldedTag}</div><div class="dv-c">${ch||'<span style="color:var(--mut);font-size:.6rem">waiting…</span>'}</div>${hr?`<div class="dv-h">${hr.name}</div>`:''}`;
+    const statusTag=p.status==='folded'?'<span style="font-size:.5rem;color:var(--mut);margin-left:4px">(folded)</span>':
+                    p.status==='allin'?'<span style="font-size:.5rem;color:var(--red);margin-left:4px">(all-in)</span>':'';
+    d.innerHTML=`<div class="dv-n">${p.name}${statusTag}</div><div class="dv-c">${ch||'<span style="color:var(--mut);font-size:.6rem">no cards</span>'}</div>${hr?`<div class="dv-h">${hr.name}</div>`:''}`;
     g.appendChild(d);
   });
 }
@@ -1604,23 +1592,24 @@ function renderActions(G2,me){
   if(me.chips>0&&toCall<me.chips)btns.appendChild(mk('ab-fo','All In 🔥',()=>dispatch('allin')));
 }
 
-// ── READY PANEL ──────────────────────────────
 function renderReadyPanel(G2,me){
   const btns=$('abtns');
   const readySet=G2.readySet||[];
   const isRdy=me&&readySet.includes(me.id);
-  const eligible=G2.players.filter(p=>p.chips>0||(p.role==='dealer'&&G2.settings.dealerType==='non-playing'));
-  const hasEnough=eligible.filter(p=>p.role!=='dealer'||G2.settings.dealerType==='playing').length>=2;
+  const eligible=G2.players.filter(p=>p.chips>0&&(p.role!=='dealer'||G2.settings.dealerType==='playing'));
+  const dealerEligible=G2.players.filter(p=>p.role==='dealer'&&G2.settings.dealerType==='non-playing');
+  const allEligible=[...eligible,...dealerEligible];
+  const hasEnough=eligible.length>=2;
   hide('betrow');hide('qbtns');
 
   if(!hasEnough){
-    btns.innerHTML=`<div style="color:var(--mut);font-family:'Cinzel',serif;font-size:.72rem">Game Over — Not enough players</div>`;
+    btns.innerHTML=`<div style="color:var(--mut);font-family:'Cinzel',serif;font-size:.72rem">Game Over — Not enough active players. Use ★ to start new game.</div>`;
     return;
   }
 
   if(isRdy){
-    btns.innerHTML=`<div style="color:var(--grn);font-family:'Cinzel',serif;font-size:.72rem">✓ Ready — waiting for others (${readySet.length}/${eligible.length})</div>`;
-  } else {
+    btns.innerHTML=`<div style="color:var(--grn);font-family:'Cinzel',serif;font-size:.72rem">✓ Ready — waiting for others (${readySet.length}/${allEligible.length})</div>`;
+  }else{
     const b=document.createElement('button');
     b.className='ab ab-rdy';
     b.textContent='✓ Ready for Next Round';
@@ -1645,7 +1634,7 @@ function dispatch(act,amt){
 
 function renderShowdown(G2,ap){
   const comm=(G2.community||[]).filter(c=>c&&!c.hidden);
-  const el=ap.filter(p=>p.status!=='folded'&&p.status!=='bankrupt');
+  const el=ap.filter(p=>p.status!=='folded'&&p.status!=='bankrupt'&&p.status!=='spectator');
   el.forEach(p=>{
     const hole=(p.cards||[]).filter(c=>c&&!c.hidden);
     p._r=hole.length>0?evalHand(hole,comm):(p.handResult||{tier:0,name:'—',desc:'',score:0});
@@ -1665,10 +1654,11 @@ function renderShowdown(G2,ap){
     </div>`;
   }).join('');
 
-  // Ready tracker
   const readySet=G2.readySet||[];
-  const eligible=G2.players.filter(p=>p.chips>0||(p.role==='dealer'&&G2.settings.dealerType==='non-playing'));
-  const rdyHtml=eligible.map(p=>`<span class="sd-rdy-pill ${readySet.includes(p.id)?'sd-rdy-yes':'sd-rdy-no'}">${readySet.includes(p.id)?'✓ ':''} ${p.name}</span>`).join('');
+  const eligible=G2.players.filter(p=>p.chips>0&&(p.role!=='dealer'||G2.settings.dealerType==='playing'));
+  const dealerEl=G2.players.filter(p=>p.role==='dealer'&&G2.settings.dealerType==='non-playing');
+  const allEligible=[...eligible,...dealerEl];
+  const rdyHtml=allEligible.map(p=>`<span class="sd-rdy-pill ${readySet.includes(p.id)?'sd-rdy-yes':'sd-rdy-no'}">${readySet.includes(p.id)?'✓ ':''} ${p.name}</span>`).join('');
 
   $('sdctrl').innerHTML=`
     <div style="font-family:'Cinzel',serif;font-size:.58rem;color:var(--mut);margin-bottom:6px;letter-spacing:.1em">READY TO CONTINUE</div>
