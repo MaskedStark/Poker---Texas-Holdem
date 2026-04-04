@@ -652,16 +652,36 @@ let myId='',myName='',amHost=false;
 let turnIdleTimer=null;
 function initPeer(){
   return new Promise((res,rej)=>{
-    const config = {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-        { urls: 'turn:turn.anyfirewall.com:443?transport=tcp', username: 'webrtc', credential: 'webrtc' }
+    const config={
+      iceServers:[
+        {urls:'stun:stun.l.google.com:19302'},
+        {urls:'stun:stun1.l.google.com:19302'},
+        {urls:'stun:stun2.l.google.com:19302'},
+        {urls:'stun:stun3.l.google.com:19302'},
+        {urls:'stun:stun4.l.google.com:19302'},
+        // Free TURN from Open Relay Project — no credentials needed
+        {urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
+        {urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},
+        {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'},
       ]
     };
-    const p=new Peer(undefined,{debug:0, config});let done=false;
-    p.on('open',id=>{myId=id;if(!done){done=true;res(p);}});
-    p.on('error',e=>{if(!done){done=true;rej(e);}else showToast('Net: '+e.type);});
+    let done=false,attempts=0;
+    function tryConnect(){
+      const p=new Peer(undefined,{debug:0,config});
+      p.on('open',id=>{myId=id;if(!done){done=true;peer=p;res(p);}});
+      p.on('error',e=>{
+        if(!done){
+          attempts++;
+          if(attempts<3){
+            showToast('Retrying connection… ('+attempts+'/3)');
+            setTimeout(tryConnect,2000);
+          }else{done=true;rej(e);}
+        }else{
+          showToast('Net: '+e.type);
+        }
+      });
+    }
+    tryConnect();
   });
 }
 
@@ -770,7 +790,14 @@ function refreshWait(){
 
 function requestNewGame(){
   if(!amHost){showToast('Only host can request new game');return;}
-  G.pendingNewGame={active:true,by:myId,approvals:[myId],okRequired:G.players.filter(p=>p.status!=='bankrupt').map(p=>p.id)};
+  // Include ALL players (even bankrupted spectators) — new game restores everyone
+  const allIds=G.players.map(p=>p.id);
+  G.pendingNewGame={
+    active:true,by:myId,
+    approvals:[myId], // host auto-approves
+    okRequired:allIds
+  };
+  addLog(`<span class="lw">Host</span> requested a new game — all players must click Ready`);
   broadcastState();
 }
 
@@ -783,23 +810,36 @@ function handleNewGameRequest(by){
 }
 
 function handleNewGameApproval(pid){
-  if(!amHost||!G.pendingNewGame||!G.pendingNewGame.active) return;
-  if(!G.pendingNewGame.approvals.includes(pid)) G.pendingNewGame.approvals.push(pid);
+  if(!amHost||!G.pendingNewGame||!G.pendingNewGame.active)return;
+  if(!G.pendingNewGame.approvals.includes(pid))G.pendingNewGame.approvals.push(pid);
+  broadcastState(); // show updated approval count to everyone
   const allOk=G.pendingNewGame.okRequired.every(id=>G.pendingNewGame.approvals.includes(id));
-  if(allOk){
-    startNewGame();
-  } else {
-    broadcastState();
-  }
+  if(allOk) startNewGame();
 }
 
 function startNewGame(){
-  if(!amHost) return;
+  if(!amHost)return;
   G.pendingNewGame=null;
-  G.phase='preflop';G.round=1;G.pot=0;G.community=[];G.currentBet=G.settings.bb;G.minRaise=G.settings.bb;G.readySet=[];G.actionsSinceLastRaise=0;G.animPhase='';
-  G.players.forEach(p=>{p.chips=G.settings.chips;p.status='active';if(p.role!=='dealer')p.role='player';p.bet=0;p.totalBet=0;p.lastAction='';p.cards=[];});
+  G.readySet=[];
+  G.phase='preflop';G.round=1;G.pot=0;G.community=[];
+  G.currentBet=G.settings.bb;G.minRaise=G.settings.bb;
+  G.actionsSinceLastRaise=0;G.animPhase='';G.pendingBanners=[];
+
+  // Restore ALL players (including bankrupted spectators) with fresh chips
+  G.players.forEach(p=>{
+    p.chips=G.settings.chips; // reset to starting chips
+    p.status='active';
+    p.bet=0;p.totalBet=0;p.lastAction='';p.cards=[];
+    // Restore spectators back to players
+    if(p.role==='spectator')p.role='player';
+  });
+
   dealRound(true);
-  broadcastState();
+  const s=serialise();
+  for(const[id,conn] of Object.entries(guestConns)){
+    try{conn.send({type:'START',state:sanitise(s,id)});}catch(e){}
+  }
+  applyState(sanitise(s,myId));
 }
 
 function approveNewGame(){
@@ -1109,38 +1149,46 @@ function runToShowdown(){
 }
 
 function runAllInShowdown(){
-  // sequential board progression for all-in scenarios, with normal phase banners
-  G.phase='flop';
-  G.community=[G.deck.pop(),G.deck.pop(),G.deck.pop()];
-  G.animPhase='flop';
-  qBanner('♥ The Flop ♥','',2000,0);
-  broadcastState();
+  // Each street: show banner (2s) → wait 0.5s → deal cards → wait 2s → next street
+  const STREET_DELAY=2600; // banner(2s) + gap(0.6s)
 
-  setTimeout(()=>{
-    G.phase='turn';
-    G.community.push(G.deck.pop());
-    G.animPhase='turn';
-    qBanner('♦ The Turn ♦','',2000,0);
-    broadcastState();
+  // Determine which streets still need to be dealt
+  const streets=[];
+  if(G.phase==='preflop'){streets.push('flop','turn','river');}
+  else if(G.phase==='flop'){streets.push('turn','river');}
+  else if(G.phase==='turn'){streets.push('river');}
+  // river already dealt → go straight to showdown
 
-    setTimeout(()=>{
-      G.phase='river';
-      G.community.push(G.deck.pop());
-      G.animPhase='river';
-      qBanner('♣ The River ♣','',2000,0);
+  const labels={flop:'♥ The Flop ♥',turn:'♦ The Turn ♦',river:'♣ The River ♣'};
+
+  function dealStreet(i){
+    if(i>=streets.length){
+      // All streets done — show showdown banner then evaluate
+      G.pendingBanners=[];
+      qBanner('♦ Showdown ♦','Best hand wins!',2200,0);
       broadcastState();
+      G.pendingBanners=[];
+      setTimeout(()=>doShowdown(),2800);
+      return;
+    }
+    const street=streets[i];
+    G.phase=street;
+    G.animPhase=street;
+    G.pendingBanners=[];
 
-      setTimeout(()=>{
-        G.phase='showdown';
-        G.animPhase='showdown';
-        qBanner('★ Showdown ★','',2200,0);
-        broadcastState();
-        doShowdown();
-      },1000);
+    if(street==='flop') G.community=[G.deck.pop(),G.deck.pop(),G.deck.pop()];
+    else if(street==='turn') G.community.push(G.deck.pop());
+    else if(street==='river') G.community.push(G.deck.pop());
 
-    },1000);
+    qBanner(labels[street],'All-In — Cards are dealt!',2000,0);
+    addLog(`🃏 <span class="lw">${street.charAt(0).toUpperCase()+street.slice(1)}</span> dealt`);
+    broadcastState();
+    G.pendingBanners=[];
 
-  },1000);
+    setTimeout(()=>dealStreet(i+1), STREET_DELAY);
+  }
+
+  dealStreet(0);
 }
 
 function doShowdown(){
@@ -1218,14 +1266,11 @@ function serialise(){return JSON.parse(JSON.stringify(G));}
 function sanitise(state,pid){
   const s=JSON.parse(JSON.stringify(state));
   const me=s.players.find(p=>p.id===pid);
-  const allInTab = s.players.filter(p=>p.status!=='folded'&&p.status!=='bankrupt');
-  const allInExposed = allInTab.length>0 && allInTab.every(p=>p.status==='allin');
-  const canSeeAll = me && (
-    (me.role==='dealer'&&s.settings.dealerType==='non-playing') ||
-    me.status==='bankrupt' ||
-    me.role==='spectator' ||
-    allInExposed
-  );
+  const allInTab=s.players.filter(p=>p.status!=='folded'&&p.status!=='bankrupt');
+  const allInExposed=allInTab.length>0&&allInTab.every(p=>p.status==='allin');
+  const isSpectator=me&&(me.status==='bankrupt'||me.role==='spectator');
+  const isDealerView=me&&me.role==='dealer'&&s.settings.dealerType==='non-playing';
+  const canSeeAll=isDealerView||isSpectator||allInExposed;
 
   if(!canSeeAll){
     s.players.forEach(p=>{
@@ -1234,6 +1279,8 @@ function sanitise(state,pid){
       }
     });
   }
+  // Spectators always see community cards (already public) + hole cards of all-in players
+  // All community cards are never hidden — they're always plain objects in G.community
   return s;
 }
 
